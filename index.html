@@ -1,0 +1,1962 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#EDF0F6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0D1226" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Picks a college outfit each day from your own wardrobe, based on the weather and your timetable.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Daily Fit">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{-webkit-text-size-adjust:100%}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<title>Daily Fit</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout concept: a garment hang-tag for today's pick, care-label rows, stitched edges.
+   Mobile first: tag card up top, day settings collapse into one line. Two columns from 860px. */
+:root{
+  --bg:#EDF0F6; --surface:#FFFFFF; --surface-2:#E2E7F1; --ink:#141B34; --muted:#56617F; --line:#C8D0E2;
+  --chalk:#F4D84A; --on-chalk:#141B34; --danger:#B3261E; --ring:rgba(20,27,52,.22); --focus:#2A47D0;
+  --display:'Bricolage Grotesque','Avenir Next','Segoe UI',system-ui,sans-serif;
+  --body:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'DM Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1226; --surface:#161D39; --surface-2:#212A4C; --ink:#ECEFF9; --muted:#9BA6C9; --line:#2B3560;
+    --danger:#FF8F86; --ring:rgba(255,255,255,.28); --focus:#9DB0FF; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1226; --surface:#161D39; --surface-2:#212A4C; --ink:#ECEFF9; --muted:#9BA6C9; --line:#2B3560;
+  --danger:#FF8F86; --ring:rgba(255,255,255,.28); --focus:#9DB0FF; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--ink); font:400 16px/1.5 var(--body);
+  padding-block:20px 56px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.wrap{max-width:980px;margin:0 auto}
+.mono{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px 20px;margin-bottom:22px}
+.brand{min-width:0}
+h1{font:700 clamp(34px,8vw,48px)/1 var(--display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+h1 span{text-decoration:underline;text-decoration-color:var(--chalk);text-decoration-thickness:.14em;text-underline-offset:.1em;text-decoration-skip-ink:none}
+.dateline{margin:8px 0 0}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:999px;padding:4px;gap:2px}
+.seg button{border:0;background:transparent;border-radius:999px;padding:10px 12px;min-height:44px;font-weight:600;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--chalk);color:var(--on-chalk)}
+.seg .n{font-family:var(--mono);font-size:12px;opacity:.7;margin-left:4px}
+
+/* today layout */
+.today-grid{display:grid;gap:18px;grid-template-columns:minmax(0,1fr);grid-template-areas:"ctl" "out" "cls" "rec"}
+#controls{grid-area:ctl;min-width:0}
+#outfit{grid-area:out;min-width:0}
+#classes{grid-area:cls;min-width:0}
+#recent{grid-area:rec;min-width:0}
+
+/* classes window */
+.classes .ch{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
+.classes h2{font:600 18px/1.2 var(--display);margin:0}
+.track{position:relative;height:26px;background:var(--surface-2);border-radius:8px;overflow:hidden}
+.blk{position:absolute;top:4px;bottom:4px;border-radius:5px;background:var(--muted);opacity:.55}
+.blk.fx{background:var(--chalk);opacity:1;box-shadow:inset 0 0 0 1.5px var(--ring)}
+.ticks{position:relative;height:18px;margin-top:4px}
+.ticks span{position:absolute;top:0;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--muted);white-space:nowrap}
+.crow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center;padding:10px 0;border-top:1px dashed var(--line)}
+.crow:first-of-type{border-top:0}
+.crow .cn{font-weight:600;overflow-wrap:anywhere}
+.pill{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--line);border-radius:999px;padding:2px 9px;color:var(--muted);white-space:nowrap}
+.pill.fx{background:var(--chalk);color:var(--on-chalk);border-color:var(--chalk)}
+.legend{font-size:13px;color:var(--muted);margin:10px 0 0}
+.ttgap{margin:0 0 14px}
+.chip.day{min-width:64px;align-items:center}
+
+/* laundry, likes, stats */
+.panel+.panel{margin-top:18px}
+.packrow{display:grid;grid-template-columns:24px 34px minmax(0,1fr);gap:12px;align-items:center;padding:10px 0;border-top:1px dashed var(--line);min-height:48px}
+.packrow input{width:22px;height:22px;accent-color:var(--ink)}
+.packrow .swatch{width:34px;height:34px;border-radius:8px}
+.packrow .nm{font-weight:600;overflow-wrap:anywhere}
+.packrow.ticked .nm{text-decoration:line-through;opacity:.55}
+.packhead{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin:12px 0 4px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-top:10px}
+.cal .dh{font-family:var(--mono);font-size:10px;text-align:center;color:var(--muted);padding:2px 0}
+.cal .cell,.cal button{min-height:52px;border-radius:10px;border:1px solid var(--line);background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:5px 2px;font-size:12px;font-family:var(--mono);color:var(--ink)}
+.cal .cell.off{border-style:dashed;opacity:.45}
+.cal .cell.fut{border-color:transparent;background:transparent}
+.cal button[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:1px}
+.cal .dots{margin:0;gap:3px}
+.cal .dots i{width:9px;height:9px}
+.cbar{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:6px 0 6px;box-shadow:inset 0 0 0 1px var(--ring)}
+.cbar span{display:block;height:100%}
+.sact{display:flex;gap:6px}
+.wk-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.harm{display:flex;align-items:center;gap:10px;margin-top:14px}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.rate{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px}
+.rate .mono{margin-right:4px}
+.link{background:none;border:0;padding:0;min-height:44px;color:var(--ink);text-decoration:underline;text-underline-offset:3px;font:inherit}
+.iact{display:flex;align-items:center}
+.irow.dirty .swatch,.irow.dirty .nm{opacity:.45}
+.statp{margin-bottom:14px}
+.srow{display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px 12px;padding:8px 0;border-top:1px dashed var(--line);font-size:14px;overflow-wrap:anywhere}
+.srow:first-of-type{border-top:0}
+@media (max-width:420px){.srow{grid-template-columns:minmax(0,1fr)}}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
+.sumbtn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 16px;min-height:52px;text-align:left}
+.sumbtn b{font-family:var(--display);font-weight:600;font-size:16px}
+.sumbtn .chg{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.ctlbody{margin-top:10px}
+.ctlbody.collapsed{display:none}
+.grp{margin:0 0 16px;padding:0;border:0;min-width:0}
+.grp:last-child{margin-bottom:0}
+.grp legend{padding:0;margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:flex;flex-direction:column;align-items:flex-start;gap:0;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 12px;min-height:48px;text-align:left}
+.chip b{font-weight:600;font-size:15px;line-height:1.25}
+.chip small{font-family:var(--mono);font-size:11px;opacity:.75;line-height:1.3}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* hang-tag card */
+.tagcard{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px 18px 18px}
+.tagcard::after{content:"";position:absolute;inset:7px;border:1.5px dashed var(--line);border-radius:11px;pointer-events:none}
+.hangtag{display:inline-flex;align-items:center;gap:10px;background:var(--chalk);color:var(--on-chalk);padding:7px 16px 7px 20px;
+  clip-path:polygon(10px 0,100% 0,100% 100%,10px 100%,0 50%);font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;max-width:100%}
+.hole{flex:none;width:9px;height:9px;border-radius:50%;background:var(--surface);box-shadow:inset 0 0 0 1.5px rgba(20,27,52,.45)}
+.slots{list-style:none;margin:14px 0 0;padding:0}
+.slot{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-top:1px dashed var(--line)}
+.slot:first-child{border-top:0}
+.swatch{width:46px;height:46px;border-radius:10px;background:var(--c);box-shadow:inset 0 0 0 1px var(--ring)}
+.slot .lbl{display:block}
+.slot .nm{display:block;font:600 18px/1.25 var(--display);overflow-wrap:anywhere}
+.slot .meta{display:block;font-size:13px;color:var(--muted)}
+.slot.none{grid-template-columns:minmax(0,1fr)}
+.slot.none .nm{font-weight:500;color:var(--muted);font-size:15px}
+.tagsample{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--line);border-radius:4px;padding:0 5px;margin-left:6px;color:var(--muted);vertical-align:2px}
+.lock{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:transparent;display:grid;place-items:center}
+.lock svg{width:20px;height:20px}
+.lock[aria-pressed="true"]{background:var(--chalk);color:var(--on-chalk);border-color:var(--chalk)}
+.why{list-style:none;margin:14px 0 0;padding:14px 0 0;border-top:1px dashed var(--line);display:grid;gap:6px}
+.why li{position:relative;padding-left:20px;font-size:14px}
+.why li::before{content:"";position:absolute;left:2px;top:.55em;width:8px;height:8px;border-radius:50%;background:var(--chalk);box-shadow:inset 0 0 0 1px var(--ring)}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:12px;border:1.5px solid var(--ink);background:transparent;font-family:var(--display);font-weight:600;font-size:16px}
+.btn svg{width:18px;height:18px}
+.btn.primary{background:var(--chalk);color:var(--on-chalk);border-color:var(--chalk)}
+.btn.small{min-height:40px;padding:0 14px;font-size:14px}
+.btn.danger{border-color:var(--line);color:var(--danger)}
+.actions .btn{flex:1 1 150px}
+.logged{margin:12px 0 0;font-size:14px;color:var(--muted)}
+.empty h2{font:600 22px/1.2 var(--display);margin:14px 0 6px}
+.empty p{margin:0 0 14px;color:var(--muted);max-width:46ch}
+
+/* recent */
+.recent h2,.sec-h{font:600 18px/1.2 var(--display);margin:0 0 10px}
+.rrow{display:grid;grid-template-columns:62px minmax(0,1fr);gap:4px 12px;align-items:start;padding:10px 0;border-top:1px dashed var(--line)}
+.rrow:first-of-type{border-top:0}
+.dots{display:flex;gap:4px;margin-bottom:3px}
+.dots i{width:14px;height:14px;border-radius:50%;background:var(--c);box-shadow:inset 0 0 0 1px var(--ring)}
+.rrow .t{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.muted{color:var(--muted);font-size:14px;margin:0}
+
+/* wardrobe */
+.wgrid{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+form{display:grid;gap:14px}
+.field{display:grid;gap:6px;min-width:0}
+.field>label,.field>.mono{display:block}
+input[type="text"],input[type="time"],select{width:100%;min-height:46px;padding:0 12px;background:var(--bg);border:1px solid var(--line);border-radius:10px;color:var(--ink)}
+.row2{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.swgrid{display:flex;flex-wrap:wrap;gap:8px}
+.sw{position:relative;display:block}
+.sw span.c{display:block;width:40px;height:40px;border-radius:10px;background:var(--c);box-shadow:inset 0 0 0 1px var(--ring);cursor:pointer}
+.sw input:checked + span.c{outline:3px solid var(--ink);outline-offset:2px}
+.sw input:focus-visible + span.c{outline:3px solid var(--focus);outline-offset:2px}
+.check{display:flex;align-items:center;gap:10px;min-height:44px}
+.check input{width:22px;height:22px;accent-color:var(--ink)}
+.err{color:var(--danger);font-size:14px;min-height:1.4em;margin:0}
+.banner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;background:var(--surface-2);border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:14px}
+.group{margin-bottom:20px}
+.group h3{font:600 16px/1.2 var(--display);margin:0 0 4px;display:flex;gap:8px;align-items:baseline}
+.irow{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 0;border-top:1px dashed var(--line)}
+.irow .swatch{width:34px;height:34px;border-radius:8px}
+.irow .nm{font-weight:600;overflow-wrap:anywhere}
+.irow .meta{font-size:13px;color:var(--muted)}
+.rm{min-height:44px;min-width:44px;border:0;background:transparent;color:var(--muted);border-radius:10px;font-size:14px;padding:0 10px}
+@media (hover:hover){.rm:hover{color:var(--danger)}}
+
+footer{margin-top:28px}
+.toast{position:fixed;left:max(16px, env(safe-area-inset-left, 0px));right:max(16px, env(safe-area-inset-right, 0px));bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+  max-width:420px;margin:0 auto;background:var(--ink);color:var(--bg);border-radius:12px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:15px;z-index:20}
+.toast button{background:transparent;border:0;color:var(--chalk);font-weight:600;min-height:36px;padding:0 4px}
+.toast[hidden]{display:none}
+
+@media (min-width:860px){
+  .today-grid{grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:24px;grid-template-areas:"ctl out" "cls out" "rec out";align-items:start}
+  .sumbtn{display:none}
+  .ctlbody,.ctlbody.collapsed{display:block;margin-top:0}
+  .tagcard{padding:26px 28px 24px}
+  .wgrid{grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:28px;align-items:start}
+}
+@media (prefers-reduced-motion:no-preference){
+  .chip,.btn,.lock,.seg button{transition:background-color .15s, color .15s, border-color .15s}
+}
+.wsearch{display:grid;gap:10px;margin:0 0 14px}
+.wsearch .chip{min-height:40px;padding:6px 12px}
+.quick{margin:0 0 14px}
+.quick h3{margin:0 0 8px}
+.quick .chips .chip{min-height:40px;padding:6px 12px}
+.quick .chip small{color:var(--muted)}
+
+/* phone app shell */
+button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.seg svg{display:none;width:22px;height:22px;flex:none}
+.welcome{margin-bottom:18px}
+.welcome h2{font:600 20px/1.2 var(--display);margin:0 0 4px}
+.wsteps{list-style:none;margin:12px 0 0;padding:0}
+.wstep{display:grid;grid-template-columns:26px minmax(0,1fr);gap:2px 12px;padding:8px 0;border-top:1px dashed var(--line)}
+.wstep:not(.open):not(.done) .nm{font-weight:500;color:var(--muted)}
+.wstep.open{padding:12px 0}
+.wstep .tick{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;margin-top:2px}
+.wstep .tick svg{width:14px;height:14px;opacity:0}
+.wstep.done .tick{background:var(--chalk);border-color:var(--chalk);color:var(--on-chalk)}
+.wstep.done .tick svg{opacity:1}
+.wstep .nm{font-weight:600}
+.wstep.done .nm{opacity:.55;text-decoration:line-through}
+.wstep .meta{font-size:13px;color:var(--muted)}
+.wstep .wb{grid-column:2;margin-top:6px}
+.wfoot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+@media (max-width:700px){
+  body{padding-bottom:calc(96px + env(safe-area-inset-bottom, 0px))}
+  .top{margin-bottom:16px}
+  .top .seg{position:fixed;left:0;right:0;bottom:0;z-index:15;border-radius:0;gap:2px;background:var(--surface);border-top:1px solid var(--line);
+    padding:6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px))}
+  .seg button{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px;padding:6px 2px;border-radius:12px;font-size:11px;letter-spacing:.02em}
+  .seg svg{display:block}
+  .seg .n{display:none}
+  .toast{bottom:calc(76px + env(safe-area-inset-bottom, 0px))}
+}
+/* photos */
+.photorow{display:flex;align-items:center;gap:12px}
+#f-prev{width:64px;height:64px;border-radius:12px;flex:none;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--ring)}
+.irow{grid-template-columns:34px minmax(0,1fr)}
+.iact{grid-column:2;flex-wrap:wrap;justify-content:flex-start;gap:2px;margin-left:-10px}
+/* standalone additions */
+.wxline{margin:0 0 8px;font-size:14px}
+.wxmsg{margin:8px 0 0;font-size:14px;color:var(--muted)}
+.wxmsg.bad{color:var(--danger)}
+.wxbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.wxform{display:grid;gap:8px}
+footer a{color:inherit}
+footer .btn{margin-top:10px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Daily <span>Fit</span></h1>
+      <p class="mono dateline" id="dateline"></p>
+    </div>
+    <nav class="seg" aria-label="Sections">
+      <button type="button" data-tab="today" id="tab-today" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg><span>Today</span></button>
+      <button type="button" data-tab="week" id="tab-week" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Plan</span></button>
+      <button type="button" data-tab="timetable" id="tab-timetable" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>Timetable</span></button>
+      <button type="button" data-tab="wardrobe" id="tab-wardrobe" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg><span>Wardrobe</span><span class="n" id="count"></span></button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="panel-today" aria-label="Today's outfit">
+      <div id="welcome"></div>
+      <div class="today-grid">
+        <div id="controls"></div>
+        <div id="outfit"></div>
+        <div id="tmr"></div>
+        <div id="classes"></div>
+        <div id="recent"></div>
+      </div>
+    </section>
+
+    <section id="panel-week" aria-label="Week ahead" hidden>
+      <div class="panel">
+        <div class="wk-h"><h2 class="sec-h" style="margin:0">Next six days</h2><button type="button" class="btn small" data-action="weekshuffle">Shuffle week</button></div>
+        <p class="muted ttgap">Built from each day’s timetable. No piece repeats, and layers follow your once-a-week rule. It uses today’s weather setting and leaves out pieces that are in the wash.</p>
+        <div id="weeklist"></div>
+      </div>
+      <div class="panel" id="pack"></div>
+      <div class="panel" id="lookback"></div>
+    </section>
+
+    <section id="panel-timetable" aria-label="Your timetable" hidden>
+      <div class="wgrid">
+        <div class="panel">
+          <h2 class="sec-h">Add a class</h2>
+          <p class="muted ttgap" id="tt-forday"></p>
+          <form id="ttform" novalidate>
+            <div class="field">
+              <label class="mono" for="t-name">Subject</label>
+              <input type="text" id="t-name" maxlength="50" autocomplete="off" placeholder="e.g. Data Structures">
+            </div>
+            <div class="field">
+              <label class="mono" for="t-type">Kind of class</label>
+              <select id="t-type">
+                <option value="lecture">Lecture</option>
+                <option value="lab">Lab / practical / workshop</option>
+                <option value="present">Presentation / viva</option>
+                <option value="sport">Sports / PE</option>
+                <option value="exam">Exam / test</option>
+              </select>
+            </div>
+            <div class="row2">
+              <div class="field">
+                <label class="mono" for="t-start">Starts</label>
+                <input type="time" id="t-start" value="09:00">
+              </div>
+              <div class="field">
+                <label class="mono" for="t-end">Ends</label>
+                <input type="time" id="t-end" value="10:00">
+              </div>
+            </div>
+            <p class="err" id="t-err" role="alert"></p>
+            <button type="submit" class="btn primary">Add class</button>
+          </form>
+        </div>
+        <div>
+          <div id="ttbanner"></div>
+          <div class="chips ttgap" id="ttdays"></div>
+          <div id="ttlist"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="panel-wardrobe" aria-label="Your wardrobe" hidden>
+      <div class="wgrid">
+        <div class="panel">
+          <h2 class="sec-h">Add a piece</h2>
+          <form id="addform" novalidate>
+            <div class="field">
+              <label class="mono" for="f-name">Name</label>
+              <input type="text" id="f-name" maxlength="60" autocomplete="off" placeholder="e.g. Grey hoodie">
+            </div>
+            <div class="field">
+              <span class="mono">Photo (optional)</span>
+              <div class="photorow">
+                <span class="swatch" id="f-prev"></span>
+                <div>
+                  <button type="button" class="btn small" data-action="pickphoto">Take or choose a photo</button>
+                  <p class="muted" id="f-photonote" style="margin:6px 0 0">The colour is picked from the photo. You can change it.</p>
+                </div>
+              </div>
+              <input type="file" id="f-photo" accept="image/*" class="vh" tabindex="-1">
+            </div>
+            <div class="row2">
+              <div class="field">
+                <label class="mono" for="f-cat">Type</label>
+                <select id="f-cat">
+                  <option value="top">Top</option>
+                  <option value="bottom">Bottom</option>
+                  <option value="one">One-piece (kurta set, dress)</option>
+                  <option value="layer">Layer (jacket, hoodie)</option>
+                  <option value="shoes">Shoes</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="mono" for="f-style">Style</label>
+                <select id="f-style">
+                  <option value="casual">Casual</option>
+                  <option value="smart">Smart</option>
+                  <option value="ethnic">Ethnic</option>
+                  <option value="sporty">Sporty</option>
+                </select>
+              </div>
+            </div>
+            <div class="field" id="pat-field">
+              <label class="mono" for="f-pattern">Pattern</label>
+              <select id="f-pattern">
+                <option value="solid">Solid colour</option>
+                <option value="striped">Striped or checked</option>
+                <option value="printed">Printed or graphic</option>
+              </select>
+            </div>
+            <div class="field" id="warm-field">
+              <label class="mono" for="f-warm">Fabric weight</label>
+              <select id="f-warm">
+                <option value="1">Light (cotton, linen)</option>
+                <option value="2">Medium (denim, twill)</option>
+                <option value="3">Warm (fleece, wool, knit)</option>
+              </select>
+            </div>
+            <div class="check" id="rain-field" hidden>
+              <input type="checkbox" id="f-rain">
+              <label for="f-rain">Fine in the rain</label>
+            </div>
+            <div class="field" role="radiogroup" aria-labelledby="colorlbl">
+              <span class="mono" id="colorlbl">Colour <span id="colorname"></span></span>
+              <div class="swgrid" id="swgrid"></div>
+            </div>
+            <p class="err" id="f-err" role="alert"></p>
+            <button type="submit" class="btn primary" id="f-submit">Add to wardrobe</button>
+          </form>
+        </div>
+        <div>
+          <div id="stats"></div>
+          <div id="banner"></div>
+          <div class="wsearch">
+            <input type="text" id="wq" placeholder="Search your wardrobe" aria-label="Search your wardrobe" autocomplete="off" enterkeyhint="search">
+            <div class="chips" id="wfilt">
+              <button type="button" class="chip" data-wfilt="all" aria-pressed="true"><b>All</b></button>
+              <button type="button" class="chip" data-wfilt="clean" aria-pressed="false"><b>Clean</b></button>
+              <button type="button" class="chip" data-wfilt="dirty" aria-pressed="false"><b>In the wash</b></button>
+              <button type="button" class="chip" data-wfilt="new" aria-pressed="false"><b>Never worn</b></button>
+            </div>
+          </div>
+          <div id="quick"></div>
+          <div id="list"></div>
+          <section class="group">
+            <h3>Back up</h3>
+            <p class="muted">Your wardrobe, timetable and history live on this device. Save a copy now and then, or use it to move to a new phone.</p>
+            <div class="actions">
+              <button type="button" class="btn small" data-action="export">Save backup</button>
+              <button type="button" class="btn small" data-action="import">Restore backup</button>
+            </div>
+            <input type="file" id="imp" accept="application/json,.json" class="vh" tabindex="-1">
+            <input type="file" id="pic" accept="image/*" class="vh" tabindex="-1">
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer><p class="mono" id="sync"></p><p class="mono">Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a></p><div class="actions" style="margin-top:10px"><button type="button" class="btn small" data-action="shareapp">Share app with friends</button></div><div id="install"></div></footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------- reference data ---------- */
+var COLORS=[
+  {id:'black',name:'Black',hex:'#1B1B20',fam:'n',dark:true},
+  {id:'white',name:'White',hex:'#F6F6F2',fam:'n'},
+  {id:'grey',name:'Grey',hex:'#8C919B',fam:'n'},
+  {id:'navy',name:'Navy',hex:'#1F2C55',fam:'n',dark:true},
+  {id:'beige',name:'Beige',hex:'#D9C8A6',fam:'n'},
+  {id:'denim',name:'Denim blue',hex:'#4E6C99',fam:'n'},
+  {id:'brown',name:'Brown',hex:'#6A4630',fam:'e',dark:true},
+  {id:'olive',name:'Olive',hex:'#6B7440',fam:'e'},
+  {id:'mustard',name:'Mustard',hex:'#D5A11D',fam:'e'},
+  {id:'maroon',name:'Maroon',hex:'#6F2030',fam:'e',dark:true},
+  {id:'sky',name:'Sky blue',hex:'#9BC4E8',fam:'c'},
+  {id:'teal',name:'Teal',hex:'#2B8A8A',fam:'c'},
+  {id:'green',name:'Green',hex:'#3E8D5B',fam:'c'},
+  {id:'lavender',name:'Lavender',hex:'#B8A8E2',fam:'c'},
+  {id:'pink',name:'Pink',hex:'#EFA3BF',fam:'w'},
+  {id:'red',name:'Red',hex:'#C5352C',fam:'w'},
+  {id:'orange',name:'Orange',hex:'#E67A2B',fam:'w'}
+];
+var CATS=[
+  {id:'top',label:'Top',plural:'Tops'},
+  {id:'bottom',label:'Bottom',plural:'Bottoms'},
+  {id:'one',label:'One-piece',plural:'One-pieces'},
+  {id:'layer',label:'Layer',plural:'Layers'},
+  {id:'shoes',label:'Shoes',plural:'Shoes'}
+];
+var STYLE_LABEL={casual:'Casual',smart:'Smart',ethnic:'Ethnic',sporty:'Sporty'};
+var WARM_LABEL={1:'Light',2:'Medium',3:'Warm'};
+var WEATHER=[
+  {id:'hot',label:'Hot',sub:'32° and up',ideal:1,layerIdeal:1,layer:0},
+  {id:'warm',label:'Warm',sub:'26–31°',ideal:1,layerIdeal:1,layer:0},
+  {id:'mild',label:'Mild',sub:'20–25°',ideal:2,layerIdeal:2,layer:0.35},
+  {id:'cool',label:'Cool',sub:'under 20°',ideal:2,layerIdeal:3,layer:1},
+  {id:'rain',label:'Rain',sub:'wet roads',ideal:2,layerIdeal:2,layer:0.7}
+];
+var PLANS=[
+  {id:'regular',label:'Regular day',sub:'lectures',style:{casual:1,ethnic:1,smart:0.5,sporty:0}},
+  {id:'present',label:'Presentation',sub:'or viva',style:{casual:0,ethnic:2,smart:3,sporty:-4},present:true},
+  {id:'lab',label:'Lab day',sub:'closed shoes',style:{casual:2,ethnic:-2,smart:0,sporty:1},closed:true},
+  {id:'evening',label:'Plans after',sub:'college',style:{casual:1,ethnic:2,smart:2,sporty:-1},evening:true},
+  {id:'interview',label:'Interview',sub:'or formal event',style:{casual:-1,ethnic:0.5,smart:3.5,sporty:-5},formal:true},
+  {id:'festive',label:'Festive',sub:'function or wedding',style:{casual:-1.5,ethnic:4.5,smart:0.5,sporty:-5},festive:true},
+  {id:'date',label:'Date or hangout',sub:'look good',style:{casual:1,ethnic:1,smart:1.5,sporty:-3},date:true},
+  {id:'gym',label:'Sports day',sub:'move freely',style:{casual:0,ethnic:-3,smart:-3,sporty:3},gym:true}
+];
+var CLASS_TYPES={lecture:'Lecture',lab:'Lab',present:'Presentation',sport:'Sports',exam:'Exam'};
+var FX_TYPES={lab:1,present:1,sport:1,exam:1};
+var TYPE_STYLE={
+  lecture:{casual:1,ethnic:1,smart:0.5,sporty:0},
+  lab:{casual:2,ethnic:-2,smart:0,sporty:1},
+  present:{casual:0,ethnic:2,smart:3,sporty:-4},
+  sport:{casual:0,ethnic:-3,smart:-3,sporty:3},
+  exam:{casual:1.5,ethnic:0.5,smart:0,sporty:0.5}
+};
+var DAY_ORDER=[1,2,3,4,5,6,0];
+var DAY_SHORT=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+var DAY_LONG=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var SLOTS=['top','bottom','one','layer','shoes'];
+var OPEN_SHOES=/sandal|slipper|flip|chappal|slide/i;
+var LS_KEY='dailyfit.v1';
+
+/* ---------- helpers ---------- */
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function uid(){return 'i'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function pick(a){return a[Math.floor(Math.random()*a.length)];}
+function colorOf(id){for(var i=0;i<COLORS.length;i++){if(COLORS[i].id===id)return COLORS[i];}return COLORS[2];}
+function dkey(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function todayKey(){return dkey(new Date());}
+function dayDiff(a,b){var pa=a.split('-').map(Number),pb=b.split('-').map(Number);return Math.round((Date.UTC(pb[0],pb[1]-1,pb[2])-Date.UTC(pa[0],pa[1]-1,pa[2]))/864e5);}
+function ago(n){return n===1?'yesterday':n+' days ago';}
+function shortDate(k){var p=k.split('-').map(Number);return new Date(p[0],p[1]-1,p[2]).toLocaleDateString(undefined,{weekday:'short',day:'numeric'});}
+function longDate(d){return d.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});}
+function tagDate(d){return d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});}
+
+/* ---------- state ---------- */
+function sampleItems(){
+  function mk(name,cat,color,style,warm,rain,pattern){return {id:uid(),name:name,cat:cat,color:color,style:style,warm:warm,rain:!!rain,pattern:pattern||'solid',sample:true};}
+  return [
+    mk('White oxford shirt','top','white','smart',1),
+    mk('Navy polo','top','navy','casual',1),
+    mk('Grey graphic tee','top','grey','casual',1,false,'printed'),
+    mk('Olive linen shirt','top','olive','casual',1),
+    mk('Mustard cotton kurta','top','mustard','ethnic',1),
+    mk('Maroon full-sleeve tee','top','maroon','casual',2),
+    mk('Sky blue striped shirt','top','sky','smart',1,false,'striped'),
+    mk('Pink boxy tee','top','pink','casual',1),
+    mk('Blue straight jeans','bottom','denim','casual',2),
+    mk('Black chinos','bottom','black','smart',2),
+    mk('Beige chinos','bottom','beige','smart',1),
+    mk('Grey joggers','bottom','grey','sporty',2),
+    mk('Navy cotton trousers','bottom','navy','smart',1),
+    mk('Teal kurta set','one','teal','ethnic',1),
+    mk('Olive co-ord set','one','olive','casual',1),
+    mk('Black zip hoodie','layer','black','casual',3),
+    mk('Denim jacket','layer','denim','casual',2),
+    mk('Grey track jacket','layer','grey','sporty',2),
+    mk('White sneakers','shoes','white','casual',2),
+    mk('Black derby shoes','shoes','black','smart',2,true),
+    mk('Brown loafers','shoes','brown','smart',2),
+    mk('Running shoes','shoes','grey','sporty',2,true),
+    mk('Brown sandals','shoes','brown','casual',2,true)
+  ];
+}
+function sampleTimetable(){
+  function c(name,type,start,end){return {id:uid(),name:name,type:type,start:start,end:end,sample:true};}
+  return {
+    '1':[c('Engineering Maths','lecture','09:00','10:00'),c('Physics Lab','lab','11:00','13:00')],
+    '2':[c('Data Structures','lecture','10:00','11:00'),c('Seminar presentation','present','14:00','15:00')],
+    '3':[c('Electronics','lecture','09:00','10:00'),c('Basketball (PE)','sport','16:00','17:00')],
+    '4':[c('Engineering Maths','lecture','10:00','11:00'),c('Electronics Lab','lab','14:00','17:00')],
+    '5':[c('Data Structures','lecture','09:00','10:00'),c('Communication Skills','lecture','11:00','12:00'),c('DBMS Lab','lab','14:00','16:00')]
+  };
+}
+function validClass(c){return c&&c.id&&c.name&&CLASS_TYPES[c.type]&&/^\d\d:\d\d$/.test(c.start)&&/^\d\d:\d\d$/.test(c.end);}
+function normTimetable(t){
+  var out={};
+  if(!t||typeof t!=='object')return out;
+  Object.keys(t).forEach(function(k){if(Array.isArray(t[k]))out[k]=t[k].filter(validClass);});
+  return out;
+}
+function validItem(i){return i&&i.id&&i.name&&CATS.some(function(c){return c.id===i.cat;});}
+function normalize(r){
+  r=r||{};
+  return {
+    items:Array.isArray(r.items)?r.items.filter(validItem):[],
+    history:Array.isArray(r.history)?r.history.filter(function(h){return h&&typeof h.d==='string'&&Array.isArray(h.ids);}):[],
+    prefs:Object.assign({weather:'warm',plan:'regular',loc:null},r.prefs||{}),
+    timetable:normTimetable(r.timetable),
+    likes:(r.likes&&typeof r.likes==='object')?r.likes:{},
+    rated:(r.rated&&typeof r.rated==='object')?r.rated:{}
+  };
+}
+function loadLocal(){try{var s=localStorage.getItem(LS_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
+var saved=loadLocal();
+var state=saved?normalize(saved):{items:sampleItems(),history:[],prefs:{weather:'warm',plan:'auto'},timetable:sampleTimetable(),likes:{},rated:{}};
+var ui={tab:'today',current:null,locks:{},seen:new Set(),ctlOpen:false,edited:false,sync:'local',removed:null,ttDay:new Date().getDay(),weather:loadWx(),wxStatus:'idle',wxMsg:'',wxEdit:false,wxUsed:null,dayKey:todayKey(),installEvt:null};
+
+/* ---------- persistence ---------- */
+var docRef=null,saveTimer=null,saving=false,dirty=false;
+function serialize(){return {v:2,items:state.items,history:state.history.slice(-60),prefs:state.prefs,timetable:state.timetable,likes:state.likes,rated:pruneRated(),updated:Date.now()};}
+function pruneRated(){
+  var k=Object.keys(state.rated);
+  while(k.length>300){delete state.rated[k.shift()];}
+  return state.rated;
+}
+function saveLocal(){try{localStorage.setItem(LS_KEY,JSON.stringify(serialize()));}catch(e){}}
+function touch(){
+  ui.edited=true;saveLocal();dirty=true;renderWelcome();
+  clearTimeout(saveTimer);saveTimer=setTimeout(flush,500);
+}
+async function flush(){
+  if(!docRef||saving)return;
+  saving=true;
+  try{
+    while(dirty){dirty=false;await docRef.set(serialize());}
+    ui.sync='cloud';
+  }catch(e){ui.sync='local';docRef=null;}
+  saving=false;renderSync();
+}
+/* ---------- live weather (Open-Meteo, no key needed) ---------- */
+function loadWx(){try{var w=JSON.parse(localStorage.getItem('dailyfit.wx'));return (w&&w.day===todayKey())?w:null;}catch(e){return null;}}
+function saveWx(w){try{localStorage.setItem('dailyfit.wx',JSON.stringify(w));}catch(e){}}
+function wxWindow(){
+  var w=ui.weather;
+  if(!w||!w.temps||!w.temps.length)return null;
+  var D=dayInfo(classesFor(new Date().getDay()));
+  var a=D?Math.floor(D.first/60):8,b=D?Math.ceil(D.last/60):17;
+  if(b<=a)b=a+1;
+  var ts=[],ps=[];
+  w.times.forEach(function(t,i){
+    var h=parseInt(t.slice(11,13),10);
+    if(h>=a&&h<=b){
+      if(w.temps[i]!=null)ts.push(w.temps[i]);
+      if(w.pop&&w.pop[i]!=null)ps.push(w.pop[i]);
+    }
+  });
+  if(!ts.length)return null;
+  var sum=ts.reduce(function(x,y){return x+y;},0);
+  return {avg:sum/ts.length,lo:Math.min.apply(null,ts),hi:Math.max.apply(null,ts),rain:ps.length?Math.max.apply(null,ps):0,a:a,b:b,cur:w.cur};
+}
+function liveWeatherId(){
+  var s=wxWindow();if(!s)return null;
+  if(s.rain>=50)return 'rain';
+  var t=s.avg;
+  return t>=32?'hot':t>=26?'warm':t>=20?'mild':'cool';
+}
+function effectiveWeatherId(){
+  if(state.prefs.weather==='live')return liveWeatherId()||'warm';
+  return WEATHER.some(function(w){return w.id===state.prefs.weather;})?state.prefs.weather:'warm';
+}
+function currentWeather(){var id=effectiveWeatherId();return WEATHER.filter(function(w){return w.id===id;})[0];}
+function wxTag(W){
+  if(state.prefs.weather==='live'){var s=wxWindow();if(s)return W.label+' '+Math.round(s.avg)+'°';}
+  return W.label;
+}
+function wxLine(){
+  var s=wxWindow();
+  if(!s)return ui.wxStatus==='loading'?'Getting the forecast…':'';
+  return Math.round(s.lo)+'–'+Math.round(s.hi)+'° from '+fmtTime(s.a*60)+' to '+fmtTime(s.b*60)+(s.rain>=50?'. Rain likely ('+Math.round(s.rain)+'%).':'.');
+}
+async function fetchWeather(force){
+  var loc=state.prefs.loc;
+  if(!loc)return;
+  var w0=ui.weather;
+  if(!force&&w0&&w0.day===todayKey()&&w0.lat===loc.lat&&w0.lon===loc.lon&&Date.now()-w0.fetched<3600000)return;
+  ui.wxStatus='loading';renderWx();
+  try{
+    var url='https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m&hourly=temperature_2m,precipitation_probability&timezone=auto&forecast_days=1';
+    var res=await fetch(url);
+    if(!res.ok)throw new Error('http '+res.status);
+    var j=await res.json();
+    var w={fetched:Date.now(),day:todayKey(),lat:loc.lat,lon:loc.lon,times:j.hourly.time,temps:j.hourly.temperature_2m,pop:j.hourly.precipitation_probability,cur:j.current?j.current.temperature_2m:null};
+    ui.weather=w;saveWx(w);ui.wxStatus='ok';
+  }catch(e){ui.wxStatus=ui.weather?'stale':'error';}
+  onWeatherChanged();
+}
+function onWeatherChanged(){
+  var id=effectiveWeatherId(),te=todayEntry();
+  if(id!==ui.wxUsed&&!(te&&ui.current&&sameIds(te.ids,curIds()))){ui.seen.clear();regen();}
+  ui.wxUsed=id;
+  renderDate();renderControls();renderOutfit();
+}
+function setLoc(loc){
+  state.prefs.loc=loc;state.prefs.weather='live';ui.wxEdit=false;ui.weather=null;ui.wxMsg='';
+  touch();fetchWeather(true);
+}
+function useGeo(){
+  if(!navigator.geolocation){ui.wxMsg='This browser can’t share your location. Search for your city instead.';renderWx();return;}
+  ui.wxStatus='loading';ui.wxMsg='';renderWx();
+  navigator.geolocation.getCurrentPosition(function(p){
+    setLoc({lat:Math.round(p.coords.latitude*100)/100,lon:Math.round(p.coords.longitude*100)/100,name:'Your location'});
+  },function(){
+    ui.wxStatus='idle';ui.wxMsg='Location was blocked. Search for your city instead.';renderWx();
+  },{timeout:10000,maximumAge:600000});
+}
+async function findCity(q){
+  q=(q||'').trim();
+  if(!q){ui.wxMsg='Type a city name first.';renderWx();return;}
+  ui.wxStatus='loading';ui.wxMsg='';renderWx();
+  try{
+    var r=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(q)+'&count=1&language=en&format=json');
+    var j=await r.json();
+    if(!j.results||!j.results.length){ui.wxStatus='idle';ui.wxMsg='No place found for “'+q+'”. Check the spelling.';renderWx();return;}
+    var g=j.results[0];
+    setLoc({lat:Math.round(g.latitude*100)/100,lon:Math.round(g.longitude*100)/100,name:g.name+(g.admin1?', '+g.admin1:'')});
+  }catch(e){ui.wxStatus='idle';ui.wxMsg='Couldn’t reach the weather service. Check your connection.';renderWx();}
+}
+function renderWx(){
+  var el=$('wx');if(!el)return;
+  var loc=state.prefs.loc,h='';
+  if(loc&&!ui.wxEdit){
+    var line=wxLine();
+    h+='<p class="wxline"><b>'+esc(loc.name)+'</b>'+(line?' · '+esc(line):'')+'</p>';
+    if(ui.wxStatus==='error')h+='<p class="wxmsg bad">Couldn’t load the forecast. Pick the weather yourself above, or try again.</p>';
+    else if(ui.wxStatus==='stale')h+='<p class="wxmsg">Offline, showing the last forecast.</p>';
+    h+='<div class="wxbtns"><button type="button" class="btn small" data-action="wx-refresh">Refresh</button><button type="button" class="btn small" data-action="wx-edit">Change place</button></div>';
+  }else{
+    h+='<p class="muted">Get today’s temperature and rain chance automatically, timed to your classes.</p>';
+    h+='<div class="wxbtns"><button type="button" class="btn small primary" data-action="wx-geo">Use my location</button></div>';
+    h+='<form class="wxform" id="wxform" novalidate style="margin-top:10px"><label class="mono" for="wx-city">Or search for a city</label><input type="text" id="wx-city" autocomplete="off" placeholder="e.g. Pune"><button type="submit" class="btn small">Find</button></form>';
+    if(ui.wxStatus==='loading')h+='<p class="wxmsg">Looking…</p>';
+  }
+  if(ui.wxMsg)h+='<p class="wxmsg bad">'+esc(ui.wxMsg)+'</p>';
+  el.innerHTML=h;
+}
+function checkDay(){
+  if(document.hidden)return;
+  var k=todayKey();
+  if(k!==ui.dayKey){
+    ui.dayKey=k;ui.ttDay=new Date().getDay();ui.current=null;ui.locks={};ui.seen.clear();ui.weather=null;
+    initCurrent();renderAll();fetchWeather(true);
+  }else{renderDate();fetchWeather(false);}
+}
+
+/* ---------- backup ---------- */
+function exportData(){
+  try{
+    var blob=new Blob([JSON.stringify(Object.assign(serialize(),{photos:PHOTOS}),null,1)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download='daily-fit-backup-'+todayKey()+'.json';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},3000);
+    toast('Backup saved to your downloads');
+  }catch(e){toast('Couldn’t create the backup');}
+}
+function importData(file){
+  var fr=new FileReader();
+  fr.onload=function(){
+    try{
+      var raw=JSON.parse(fr.result),n=normalize(raw);
+      if(raw&&raw.photos&&typeof raw.photos==='object'){Object.keys(raw.photos).forEach(function(id){if(typeof raw.photos[id]==='string')setPhoto(id,raw.photos[id]);});}
+      if(!n.items.length&&!n.history.length&&!Object.keys(n.timetable).length)throw new Error('empty');
+      var prev=state;
+      state=n;ui.current=null;ui.locks={};ui.seen.clear();
+      touch();initCurrent();renderAll();
+      if(state.prefs.loc)fetchWeather(true);
+      toast('Backup restored','Undo',function(){state=prev;ui.current=null;ui.locks={};ui.seen.clear();touch();initCurrent();renderAll();});
+    }catch(e){toast('That file isn’t a Daily Fit backup');}
+  };
+  fr.readAsText(file);
+}
+
+/* ---------- welcome, sharing ---------- */
+var ICON_SHARE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/></svg>';
+var ICON_TICK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>';
+function isStandalone(){return (window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||(navigator&&navigator.standalone)||false;}
+function hasSamples(){
+  return state.items.some(function(i){return i.sample;})||Object.keys(state.timetable).some(function(k){return state.timetable[k].some(function(c){return c.sample;});});
+}
+function hasRealClasses(){return Object.keys(state.timetable).some(function(k){return state.timetable[k].some(function(c){return !c.sample;});});}
+function renderWelcome(){
+  var el=$('welcome');if(!el)return;
+  if(state.prefs.onboarded){el.innerHTML='';return;}
+  var ua=(navigator&&navigator.userAgent)||'',ios=/iphone|ipad|ipod/i.test(ua),stand=isStandalone();
+  var steps=[
+    {done:!!state.prefs.loc,t:'Set your city',m:'Gives you live temperature and rain chance, timed to your classes.',b:'<button type="button" class="btn small primary" data-action="wx-geo">Use my location</button>'},
+    {done:!hasSamples(),t:'Clear the sample clothes',m:'They are only there so you can try the app.',b:'<button type="button" class="btn small" data-action="clearall">Clear samples</button>'},
+    {done:state.items.some(function(i){return !i.sample;}),t:'Add your own clothes',m:'A top, a bottom and shoes is enough to start.',b:'<button type="button" class="btn small" data-tab="wardrobe">Open wardrobe</button>'},
+    {done:hasRealClasses(),t:'Add your classes',m:'So outfits fit labs, presentations and long days.',b:'<button type="button" class="btn small" data-tab="timetable">Open timetable</button>'},
+    {done:stand,t:'Put it on your home screen',m:ui.installEvt?'One tap and it opens like any other app.':(ios?'Tap the Share button in Safari, then Add to Home Screen.':'Open the browser menu and choose Install app or Add to Home screen.'),b:ui.installEvt?'<button type="button" class="btn small primary" data-action="install">Install app</button>':''}
+  ];
+  var rest=steps.filter(function(x){return !x.done;});
+  if(!rest.length){el.innerHTML='';return;}
+  var h='<div class="panel welcome"><h2>Make it yours</h2><p class="muted">'+(steps.length-rest.length)+' of '+steps.length+' done. Everything stays on this phone.</p><ol class="wsteps">';
+  steps.forEach(function(x){
+    var open=(x===rest[0]);
+    h+='<li class="wstep'+(x.done?' done':'')+(open?' open':'')+'"><span class="tick">'+ICON_TICK+'</span><div><div class="nm">'+esc(x.t)+'</div>'+(open?'<div class="meta">'+esc(x.m)+'</div>':'')+'</div>'+((open&&x.b)?'<div class="wb">'+x.b+'</div>':'')+'</li>';
+  });
+  h+='</ol><div class="wfoot"><span class="mono">Setup guide</span><button type="button" class="link" data-action="welcome-skip">Skip for now</button></div></div>';
+  el.innerHTML=h;
+}
+async function shareApp(){
+  if(!/^https?:$/.test(location.protocol)){toast('Host the app first. Then this button shares its link.');return;}
+  var url=location.href.split('#')[0].split('?')[0];
+  try{
+    if(navigator.share){await navigator.share({title:'Daily Fit',text:'Picks your college outfit every day from your own wardrobe. Your clothes stay on your phone.',url:url});return;}
+  }catch(e){if(e&&e.name==='AbortError')return;}
+  try{await navigator.clipboard.writeText(url);toast('Link copied. Paste it in a chat.');}
+  catch(e){toast('Copy this link: '+url);}
+}
+function rrect(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+function fitText(g,t,maxW){
+  if(g.measureText(t).width<=maxW)return t;
+  while(t.length>1&&g.measureText(t+'…').width>maxW)t=t.slice(0,-1);
+  return t+'…';
+}
+async function shareOutfit(){
+  var cur=ui.current;if(!cur)return;
+  var items=[['Layer','layer'],['One-piece','one'],['Top','top'],['Bottom','bottom'],['Shoes','shoes']].map(function(p){return cur[p[1]]?{label:p[0],it:byId(cur[p[1]])}:null;}).filter(function(x){return x&&x.it;});
+  var W=1080,pad=72,rowH=176,head=330,foot=190,H=head+items.length*rowH+foot;
+  var cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  var g=cv.getContext('2d');
+  var disp="'Bricolage Grotesque','Avenir Next','Segoe UI',system-ui,sans-serif",mono="'DM Mono',ui-monospace,Menlo,Consolas,monospace";
+  g.fillStyle='#141B34';g.fillRect(0,0,W,H);
+  g.strokeStyle='rgba(236,239,249,.22)';g.lineWidth=3;g.setLineDash([14,12]);rrect(g,28,28,W-56,H-56,34);g.stroke();g.setLineDash([]);
+  g.fillStyle='#ECEFF9';g.font='700 92px '+disp;g.fillText('Daily Fit',pad,pad+92);
+  var P=buildPlan(),Wt=currentWeather();
+  var tagTxt=(tagDate(new Date())+' · '+wxTag(Wt)+' · '+P.label).toUpperCase();
+  g.font='500 28px '+mono;
+  var tw=g.measureText(tagTxt).width,tx=pad,ty=pad+140,th=64,tp=44;
+  g.fillStyle='#F4D84A';g.beginPath();g.moveTo(tx+24,ty);g.lineTo(tx+tp+tw+30,ty);g.lineTo(tx+tp+tw+30,ty+th);g.lineTo(tx+24,ty+th);g.lineTo(tx,ty+th/2);g.closePath();g.fill();
+  g.fillStyle='#141B34';g.beginPath();g.arc(tx+38,ty+th/2,8,0,Math.PI*2);g.fill();
+  g.fillText(tagTxt,tx+tp+8,ty+42);
+  var imgs={};
+  await Promise.all(items.map(function(r){
+    var ph=getPhoto(r.it.id);if(!ph)return null;
+    return new Promise(function(res){var im=new Image();im.onload=function(){imgs[r.it.id]=im;res();};im.onerror=res;im.src=ph;});
+  }));
+  var y=head;
+  items.forEach(function(r){
+    var C=colorOf(r.it.color);
+    g.strokeStyle='rgba(236,239,249,.18)';g.lineWidth=2;g.setLineDash([10,10]);g.beginPath();g.moveTo(pad,y);g.lineTo(W-pad,y);g.stroke();g.setLineDash([]);
+    if(imgs[r.it.id]){
+      var im=imgs[r.it.id],kk=Math.max(120/im.width,120/im.height),dw=im.width*kk,dh=im.height*kk;
+      g.save();rrect(g,pad,y+28,120,120,22);g.clip();g.drawImage(im,pad+(120-dw)/2,y+28+(120-dh)/2,dw,dh);g.restore();
+    }else{g.fillStyle=C.hex;rrect(g,pad,y+28,120,120,22);g.fill();}
+    g.strokeStyle='rgba(255,255,255,.35)';g.lineWidth=2;rrect(g,pad,y+28,120,120,22);g.stroke();
+    g.fillStyle='#9BA6C9';g.font='500 24px '+mono;g.fillText(r.label.toUpperCase(),pad+160,y+62);
+    g.fillStyle='#ECEFF9';g.font='600 46px '+disp;g.fillText(fitText(g,r.it.name,W-pad*2-160),pad+160,y+112);
+    g.fillStyle='#9BA6C9';g.font='400 30px '+disp;g.fillText(C.name+' · '+(STYLE_LABEL[r.it.style]||'Casual'),pad+160,y+150);
+    y+=rowH;
+  });
+  g.fillStyle='#9BA6C9';g.font='500 26px '+mono;
+  if(cur.harm!=null)g.fillText('COLOUR MATCH · '+harmLabel(cur.harm).toUpperCase(),pad,y+70);
+  g.fillText('MADE WITH DAILY FIT',pad,y+118);
+  var blob=await new Promise(function(res){cv.toBlob(res,'image/png');});
+  if(!blob){toast('Couldn’t make the picture');return;}
+  var file=new File([blob],'daily-fit-'+todayKey()+'.png',{type:'image/png'});
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'My outfit today'});return;}
+  }catch(e){if(e&&e.name==='AbortError')return;}
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},3000);
+  toast('Picture saved to your downloads');
+}
+
+/* ---------- photos (stored on this phone, one key per piece) ---------- */
+var PHOTO_PREFIX='dailyfit.photo.';
+var PHOTO_OK=/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/;
+var PHOTOS={};
+function loadPhotos(){
+  try{
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k&&k.indexOf(PHOTO_PREFIX)===0){var v=localStorage.getItem(k);if(v&&PHOTO_OK.test(v))PHOTOS[k.slice(PHOTO_PREFIX.length)]=v;}
+    }
+  }catch(e){}
+}
+function getPhoto(id){return PHOTOS[id]||null;}
+function setPhoto(id,data){
+  if(!PHOTO_OK.test(data))return false;
+  try{localStorage.setItem(PHOTO_PREFIX+id,data);PHOTOS[id]=data;return true;}
+  catch(e){toast('Phone storage is full. Remove a photo or save a backup first.');return false;}
+}
+function dropPhoto(id){delete PHOTOS[id];try{localStorage.removeItem(PHOTO_PREFIX+id);}catch(e){}}
+function photoCss(id){var p=PHOTOS[id];return p?"background:url('"+p+"') center/cover no-repeat;":'';}
+function readImage(file){
+  return new Promise(function(resolve,reject){
+    var url=URL.createObjectURL(file),img=new Image();
+    img.onload=function(){URL.revokeObjectURL(url);resolve(img);};
+    img.onerror=function(){URL.revokeObjectURL(url);reject(new Error('bad image'));};
+    img.src=url;
+  });
+}
+function shrinkImage(img,max){
+  var w=img.naturalWidth||img.width,h=img.naturalHeight||img.height,k=Math.min(1,max/Math.max(w,h));
+  var cv=document.createElement('canvas');
+  cv.width=Math.max(1,Math.round(w*k));cv.height=Math.max(1,Math.round(h*k));
+  cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+  return cv;
+}
+function rgb2lab(r,g,b){
+  function f(c){c/=255;return c>0.04045?Math.pow((c+0.055)/1.055,2.4):c/12.92;}
+  var R=f(r),G=f(g),B=f(b);
+  var X=(R*0.4124+G*0.3576+B*0.1805)/0.95047,Y=R*0.2126+G*0.7152+B*0.0722,Z=(R*0.0193+G*0.1192+B*0.9505)/1.08883;
+  function t(v){return v>0.008856?Math.cbrt(v):(7.787*v+16/116);}
+  var fx=t(X),fy=t(Y),fz=t(Z);
+  return [116*fy-16,500*(fx-fy),200*(fy-fz)];
+}
+function guessColor(cv){
+  var w=cv.width,h=cv.height,x0=Math.floor(w*0.3),y0=Math.floor(h*0.3),cw=Math.max(1,Math.floor(w*0.4)),ch=Math.max(1,Math.floor(h*0.4));
+  var d=cv.getContext('2d').getImageData(x0,y0,cw,ch).data,r=0,g=0,b=0,n=0;
+  for(var i=0;i<d.length;i+=16){r+=d[i];g+=d[i+1];b+=d[i+2];n++;}
+  if(!n)return COLORS[2];
+  var L=rgb2lab(r/n,g/n,b/n),best=COLORS[2],bd=1e9;
+  COLORS.forEach(function(c){
+    var q=rgb2lab(parseInt(c.hex.slice(1,3),16),parseInt(c.hex.slice(3,5),16),parseInt(c.hex.slice(5,7),16));
+    var dist=Math.pow(L[0]-q[0],2)*0.5+Math.pow(L[1]-q[1],2)+Math.pow(L[2]-q[2],2);
+    if(dist<bd){bd=dist;best=c;}
+  });
+  return best;
+}
+async function pickPhotoForForm(file){
+  try{
+    var img=await readImage(file),cv=shrinkImage(img,360),g=guessColor(cv);
+    ui.photoPending=cv.toDataURL('image/jpeg',0.72);
+    $('f-prev').style.background="url('"+ui.photoPending+"') center/cover no-repeat";
+    var radio=document.querySelector('#swgrid input[value="'+g.id+'"]');
+    if(radio){radio.checked=true;$('colorname').textContent='· '+g.name;$('f-err').textContent='';}
+    $('f-photonote').textContent='Looks '+g.name.toLowerCase()+'. Change the colour below if that is wrong.';
+  }catch(e){toast('Couldn’t read that photo');}
+}
+async function attachPhoto(id,file){
+  try{
+    var img=await readImage(file),cv=shrinkImage(img,360);
+    if(setPhoto(id,cv.toDataURL('image/jpeg',0.72))){renderList();renderOutfit();renderPack();toast('Photo saved');}
+  }catch(e){toast('Couldn’t read that photo');}
+}
+
+/* ---------- install ---------- */
+function renderInstall(){
+  var el=$('install');if(!el)return;
+  var standalone=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||(navigator&&navigator.standalone);
+  if(standalone){el.innerHTML='';return;}
+  if(ui.installEvt){el.innerHTML='<button type="button" class="btn small primary" data-action="install">Install this app</button>';return;}
+  var ua=(navigator&&navigator.userAgent)||'';
+  if(/iphone|ipad|ipod/i.test(ua))el.innerHTML='<p class="muted">To install: tap Share, then Add to Home Screen.</p>';
+  else el.innerHTML='';
+}
+
+/* ---------- wardrobe queries ---------- */
+function pools(){var p={top:[],bottom:[],one:[],layer:[],shoes:[]};state.items.forEach(function(i){if(!i.dirty)p[i.cat].push(i);});return p;}
+function wearCounts(){var m={};state.history.forEach(function(h){h.ids.forEach(function(id){m[id]=(m[id]||0)+1;});});return m;}
+function byId(id){for(var i=0;i<state.items.length;i++){if(state.items[i].id===id)return state.items[i];}return null;}
+function ready(){var p=pools();return p.shoes.length>0&&((p.top.length>0&&p.bottom.length>0)||p.one.length>0);}
+function todayEntry(){var t=todayKey();for(var i=0;i<state.history.length;i++){if(state.history[i].d===t)return state.history[i];}return null;}
+function lastWornMap(ref,extra){
+  var t=ref||todayKey(),m={};
+  state.history.concat(extra||[]).forEach(function(h){
+    if(h.d>=t)return;
+    var n=dayDiff(h.d,t);
+    h.ids.forEach(function(id){if(m[id]==null||n<m[id])m[id]=n;});
+  });
+  return m;
+}
+
+/* ---------- scoring ---------- */
+var HSL={};
+function hsl(id){
+  if(HSL[id])return HSL[id];
+  var hex=colorOf(id).hex,r=parseInt(hex.slice(1,3),16)/255,g=parseInt(hex.slice(3,5),16)/255,b=parseInt(hex.slice(5,7),16)/255;
+  var mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2,d=mx-mn,h=0,sat=0;
+  if(d>0){
+    sat=d/(1-Math.abs(2*l-1));
+    if(mx===r)h=((g-b)/d)%6;else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;
+    h=(h*60+360)%360;
+  }
+  HSL[id]={h:h,s:sat,l:l};
+  return HSL[id];
+}
+/* Hand-tuned verdicts for colour pairs. Anything not listed falls back to hue maths. */
+var PAIR_FIX={};
+function setPairs(val,list){list.forEach(function(p){PAIR_FIX[p.split('+').sort().join('+')]=val;});}
+setPairs(3,['navy+beige','navy+white','navy+mustard','navy+sky','navy+pink','olive+beige','maroon+beige','black+white','brown+beige','denim+white','denim+beige','grey+pink','brown+sky','grey+lavender','beige+sky','olive+white','white+sky','white+pink','white+lavender']);
+setPairs(2.5,['navy+grey','navy+maroon','denim+mustard','denim+maroon','denim+pink','denim+olive','denim+orange','olive+brown','olive+mustard','olive+black','maroon+grey','maroon+white','black+red','black+mustard','grey+mustard','brown+white','brown+denim','brown+teal','beige+teal','beige+pink','beige+green','beige+lavender','white+teal','white+green','white+olive','black+pink','black+orange','white+mustard','white+maroon','grey+teal','grey+sky']);
+setPairs(1,['grey+beige','teal+navy','sky+lavender','pink+lavender','sky+teal','navy+orange','navy+red','mustard+lavender']);
+setPairs(-0.5,['navy+denim','navy+olive','teal+denim','teal+lavender','denim+sky']);
+setPairs(-1.5,['navy+black','navy+green','green+pink','mustard+red']);
+setPairs(-2,['orange+maroon','orange+green','orange+lavender','mustard+pink','green+teal','green+olive','red+maroon','brown+maroon','red+lavender','teal+pink']);
+setPairs(-3,['red+pink','red+orange','orange+pink','black+brown','mustard+orange']);
+setPairs(-4,['red+green','red+teal']);
+
+function pairScore(a,b){
+  var A=colorOf(a.color),B=colorOf(b.color);
+  if(A.id===B.id)return A.fam==='n'?1.5:0.5;
+  var key=[A.id,B.id].sort().join('+');
+  if(PAIR_FIX[key]!==undefined)return PAIR_FIX[key];
+  if(A.fam==='n'||B.fam==='n')return 1.5;
+  var ha=hsl(A.id),hb=hsl(B.id),d=Math.abs(ha.h-hb.h);
+  if(d>180)d=360-d;
+  if(d<=30)return 1;
+  if(d<=75)return 0.5;
+  if(d<=120)return -1.5;
+  if(d<=150)return -0.5;
+  return (ha.s<0.45||hb.s<0.45)?1:-1;
+}
+function isLoud(it){var C=colorOf(it.color),h=hsl(it.color);return C.fam!=='n'&&C.id!=='brown'&&h.s>=0.5&&h.l>=0.28&&h.l<=0.72;}
+function colorEval(upper,bottom,layer,shoes){
+  var body=[upper,bottom,layer].filter(Boolean),sc=0,tags=[],best=null,i,j;
+  /* 1. how each pair of clothes sits together */
+  for(i=0;i<body.length;i++){for(j=i+1;j<body.length;j++){
+    var v=pairScore(body[i],body[j]);
+    sc+=v;
+    if(!best||v>best.v)best={v:v,a:body[i],b:body[j]};
+  }}
+  if(best&&best.v>=2.5&&best.a.color!==best.b.color){
+    tags.push(colorOf(best.a.color).name+' with '+colorOf(best.b.color).name.toLowerCase()+' works well');
+  }
+  /* 2. light against dark makes an outfit read as deliberate */
+  if(bottom){
+    var lu=hsl(upper.color).l,lb=hsl(bottom.color).l,dl=Math.abs(lu-lb);
+    if(upper.color!==bottom.color){
+      if(dl>=0.3){sc+=1.5;tags.push(lu>lb?'Light top against a darker bottom':'Dark top against a lighter bottom');}
+      else if(dl<0.12)sc-=1.5;
+    }
+  }
+  /* 3. shoes */
+  body.forEach(function(it){sc+=pairScore(shoes,it)*0.4;});
+  var sb=shoes.color;
+  body.forEach(function(it){
+    if((sb==='brown'&&it.color==='black')||(sb==='black'&&it.color==='brown'))sc-=2;
+  });
+  if(sb==='brown'&&body.some(function(it){return ['olive','beige','mustard','denim','navy','white'].indexOf(it.color)>-1;}))tags.push('Brown shoes warm up the palette');
+  /* 4. one bold piece is a statement, two are a fight */
+  var br=body.filter(function(it){var h=hsl(it.color),C=colorOf(it.color);return C.fam!=='n'&&C.id!=='brown'&&h.s>=0.5&&h.l>=0.28&&h.l<=0.72;});
+  if(br.length>=2)sc-=2.5;
+  else if(br.length===1){sc+=0.8;tags.push('One bold piece, the rest stays calm');}
+  /* 5. keep the palette to about three colours */
+  var chroma={};
+  body.concat([shoes]).forEach(function(it){var C=colorOf(it.color);if(C.fam!=='n'&&C.id!=='brown')chroma[C.id]=1;});
+  var ids=Object.keys(chroma),nc=ids.length;
+  if(nc>=3)sc-=3;
+  if(nc===0)tags.push('All-neutral palette, nothing clashes');
+  else if(nc>=2&&ids.every(function(k){return colorOf(k).fam==='e';}))tags.push('Earth tones that sit together');
+  else if(nc>=2&&ids.every(function(k){return colorOf(k).fam==='c';}))tags.push('Cool tones that match');
+  /* 6. patterns: one at a time */
+  var pat=body.filter(function(it){return (it.pattern||'solid')!=='solid';});
+  if(pat.length>=2)sc-=4;
+  else if(pat.length===1){sc+=0.8;tags.push('One pattern, everything else solid');}
+  /* 7. a layer should add something, not repeat the top */
+  if(layer){
+    if(upper.color===layer.color&&colorOf(layer.color).fam!=='n')sc-=1.5;
+    var hl=hsl(layer.color),LC=colorOf(layer.color);
+    if(LC.fam!=='n'&&LC.id!=='brown'&&hl.s>=0.5&&hl.l>=0.28&&hl.l<=0.72)sc-=1;
+  }
+  return {score:sc,tags:tags};
+}
+function harmLabel(x){return x>=CAL.strong?'Strong':(x>=CAL.good?'Good':'Safe');}
+var CAL={strong:6.5,good:5.5,pass:5};
+function stylePair(a,b){
+  if(a===b)return 1;
+  var k=[a,b].sort().join('+');
+  var t={'smart+sporty':-3,'ethnic+sporty':-3,'ethnic+smart':-0.5};
+  return t[k]||0;
+}
+/* ---------- timetable ---------- */
+function toMin(t){var p=t.split(':');return parseInt(p[0],10)*60+parseInt(p[1],10);}
+function fmtTime(t){
+  var m=typeof t==='number'?t:toMin(t),h=Math.floor(m/60),mm=m%60,ap=h>=12?'pm':'am',h12=h%12===0?12:h%12;
+  return h12+':'+String(mm).padStart(2,'0')+' '+ap;
+}
+function fmtHour(m){var h=Math.floor(m/60),ap=h>=12?'pm':'am',h12=h%12===0?12:h%12;return h12+ap;}
+function classesFor(day){
+  return (state.timetable[String(day)]||[]).slice().sort(function(a,b){return toMin(a.start)-toMin(b.start);});
+}
+function dayInfo(cl){
+  if(!cl.length)return null;
+  var first=Infinity,last=0,mins=0,noon=false;
+  cl.forEach(function(c){
+    var s=toMin(c.start),e=toMin(c.end);
+    if(s<first)first=s;if(e>last)last=e;mins+=Math.max(0,e-s);
+    if(s<16*60&&e>12*60)noon=true;
+  });
+  return {n:cl.length,first:first,last:last,mins:mins,long:(last-first>=360||mins>=300),late:last>=18*60,noon:noon};
+}
+function effectivePlanId(day,future){
+  day=(day==null)?new Date().getDay():day;
+  var id=future?'auto':state.prefs.plan;
+  if(id==='auto')return classesFor(day).length?'auto':'regular';
+  return PLANS.some(function(p){return p.id===id;})?id:'regular';
+}
+function buildPlan(day,future){
+  day=(day==null)?new Date().getDay():day;
+  var id=effectivePlanId(day,future);
+  if(id!=='auto')return PLANS.filter(function(p){return p.id===id;})[0];
+  var types={},style={casual:0,smart:0,ethnic:0,sporty:0};
+  classesFor(day).forEach(function(c){if(!types[c.type])types[c.type]=c;});
+  Object.keys(types).forEach(function(t){var ts=TYPE_STYLE[t];Object.keys(style).forEach(function(k){style[k]+=ts[k];});});
+  return {id:'auto',label:'From timetable',style:style,present:types.present||null,closed:types.lab||types.sport||null,sport:types.sport||null,exam:types.exam||null};
+}
+function desc(x,fb){return (x&&x.name)?x.name+' at '+fmtTime(x.start):fb;}
+function makeCtx(day,ref,extra){
+  day=(day==null)?new Date().getDay():day;
+  return {
+    W:currentWeather(),
+    plan:buildPlan(day,!!ref&&ref!==todayKey()),
+    day:dayInfo(classesFor(day)),
+    last:lastWornMap(ref,extra)
+  };
+}
+function wxWeight(){return ({style:0.25,balanced:0.6,strict:1})[state.prefs.wxWeight||'style']||0.25;}
+function scoreCombo(c,ctx){
+  var W=ctx.W,plan=ctx.plan,D=ctx.day,last=ctx.last,s=0,tags=[];
+  var upper=c.one||c.top,bottom=c.bottom,layer=c.layer,shoes=c.shoes;
+  var body=[upper,bottom,layer].filter(Boolean);
+  var all=[upper,bottom,layer,shoes].filter(Boolean);
+  var heat=(W.id==='hot'||W.id==='warm');
+
+  /* weather */
+  var WX=wxWeight(),dUp=Math.abs(upper.warm-W.ideal);
+  s-=dUp*2.2*WX;
+  if(dUp>=2)s-=2;
+  if(bottom&&W.id==='hot'&&bottom.warm>=3)s-=2*WX;
+  if(layer){
+    if(W.id==='hot')s-=3;else s-=Math.abs(layer.warm-W.layerIdeal)*1.2*WX;
+  }else if(W.id==='cool')s-=3*WX;
+  if(heat&&colorOf(upper.color).dark)s-=(W.id==='hot'?1.5:0.7)*WX;
+  if(heat&&D&&D.noon&&colorOf(upper.color).dark)s-=1*WX;
+  if(heat&&upper.warm===1&&!colorOf(upper.color).dark)tags.push(D&&D.noon?'Light and breathable for your afternoon classes':'Light and breathable for the heat');
+  else if(W.id==='cool'&&layer&&layer.warm>=2)tags.push('Layered for the chill');
+  if(W.id==='rain'){
+    if(shoes.rain){s+=3;tags.push('Shoes that handle wet roads');}else s-=6;
+    if(bottom&&(bottom.color==='white'||bottom.color==='beige'))s-=1.5;
+  }
+
+  /* occasion */
+  s+=(plan.style[upper.style]||0);
+  if(bottom)s+=(plan.style[bottom.style]||0)*0.5;
+  s+=(plan.style[shoes.style]||0)*0.5;
+  var classTags=[];
+  if(plan.present&&(upper.style==='smart'||upper.style==='ethnic'))classTags.push('Sharp for '+desc(plan.present,'a presentation'));
+  if(plan.evening&&(upper.style==='smart'||upper.style==='ethnic'))classTags.push('Easy to carry into the evening');
+  if(plan.closed){
+    if(OPEN_SHOES.test(shoes.name))s-=4;else classTags.push('Closed shoes for '+desc(plan.closed,'the lab'));
+  }
+  if(plan.sport){
+    if(shoes.style==='sporty'){s+=3;classTags.push('Ready for '+desc(plan.sport,'sports'));}
+    else s-=(/sneaker|trainer/i.test(shoes.name)?0.5:2.5);
+    if(bottom)s+=(bottom.style==='sporty'?2:-1);
+  }
+  if(plan.exam&&shoes.style!=='smart'&&upper.style!=='smart')classTags.push('Comfortable for '+desc(plan.exam,'your exam'));
+  if(plan.formal){
+    body.forEach(function(it){if(isLoud(it))s-=3;if((it.pattern||'solid')!=='solid')s-=2;});
+    if(shoes.style==='smart')s+=2;else s-=3;
+    if(upper.style==='smart'&&shoes.style==='smart')classTags.push('Clean and formal for the day');
+  }
+  if(plan.festive){
+    if(body.filter(isLoud).length===1){s+=1.5;classTags.push('A colour that suits a festive day');}
+    if(upper.style==='ethnic'){s+=2.5;classTags.push('Ethnic wear for the occasion');}
+  }
+  if(plan.date){
+    if(upper.style==='smart'||upper.style==='ethnic')s+=1;
+    if(shoes.style==='sporty')s-=2;
+    if(upper.style!=='sporty'&&shoes.style!=='sporty')classTags.push('Polished without trying too hard');
+  }
+  if(plan.gym){
+    if(shoes.style==='sporty'){s+=3;classTags.push('Shoes made for moving');}else s-=4;
+    if(bottom){if(bottom.style==='sporty')s+=2;else s-=3;}else s-=4;
+  }
+  if(D){
+    if(D.long){
+      if(shoes.style==='smart')s-=1.5;else{s+=0.5;classTags.push('Easy shoes for '+fmtTime(D.first)+' to '+fmtTime(D.last));}
+    }
+    if(D.late&&W.id!=='hot'){
+      if(layer){s+=1.5;classTags.push('Layer for after dark, you finish at '+fmtTime(D.last));}
+      else s-=1;
+    }
+  }
+  tags=classTags.concat(tags);
+
+  /* style match */
+  for(var i=0;i<all.length;i++){for(var j=i+1;j<all.length;j++){s+=stylePair(all[i].style,all[j].style);}}
+
+  /* colour and pattern */
+  var cs=colorEval(upper,bottom,layer,shoes);
+  s+=cs.score;
+  var csTags=cs.tags;
+
+  /* recency */
+  var weights=[[upper,1],[bottom,0.5],[layer,0.6],[shoes,0.4]],fresh=true;
+  weights.forEach(function(p){
+    var it=p[0],w=p[1];if(!it)return;
+    var d=last[it.id];
+    if(d==null)s+=1.0*w;
+    else if(d<=1){s-=6*w;fresh=false;}
+    else if(d===2){s-=3*w;fresh=false;}
+    else if(d<=4){s-=1.5*w;fresh=false;}
+    else s+=Math.min(d-4,10)*0.15*w;
+  });
+  if(fresh&&state.history.length)tags.push('Nothing here worn in the last 4 days');
+
+  /* taste: pieces you liked before, and whole outfits you rated */
+  var likeSum=0;
+  all.forEach(function(it){likeSum+=(state.likes[it.id]||0);});
+  s+=likeSum*0.5;
+  if(likeSum>=2)tags.push('Pieces you’ve liked before');
+  var rk=all.map(function(it){return it.id;}).sort().join(',');
+  s+=(state.rated[rk]||0)*3;
+
+  tags=tags.slice(0,3).concat(csTags.slice(0,2));
+  return {s:s+Math.random()*1.2,tags:tags,harm:cs.score-(layer?4.5:0)+(c.one?2:0)};
+}
+
+/* ---------- layers: at most once a week ---------- */
+function layerWait(ref,extra){
+  if((state.prefs.layerRule||'weekly')==='free')return 0;
+  var t=ref||todayKey(),best=null;
+  state.history.concat(extra||[]).forEach(function(h){
+    if(h.d>=t)return;
+    var has=h.ids.some(function(id){var it=byId(id);return it&&it.cat==='layer';});
+    if(has){var n=dayDiff(h.d,t);if(best===null||n<best)best=n;}
+  });
+  return best===null?0:Math.max(0,7-best);
+}
+
+/* ---------- generation ---------- */
+function pickTop(arr){
+  var top=arr.slice(0,10),b=top[0].s,sum=0,ws=top.map(function(x){var w=Math.exp((x.s-b)/1.5);sum+=w;return w;}),r=Math.random()*sum,i;
+  for(i=0;i<top.length;i++){r-=ws[i];if(r<=0)return top[i];}
+  return top[0];
+}
+function generate(opts){
+  opts=opts||{};
+  var p=pools(),ctx=opts.ctx||makeCtx(),W=ctx.W,cur=opts.free?null:ui.current,fixed={};
+  if(cur){SLOTS.forEach(function(s){if(ui.locks[s]&&cur[s]){var it=byId(cur[s]);if(it)fixed[s]=it;}});}
+  var canTwo=p.top.length>0&&p.bottom.length>0,canOne=p.one.length>0;
+  if(!p.shoes.length||(!canTwo&&!canOne))return null;
+  var found=new Map();
+  var layerProb=(ctx.day&&ctx.day.late&&W.id!=='hot')?Math.max(W.layer,0.75):W.layer;
+  var layerOK=(opts.layerOK!==undefined?opts.layerOK:layerWait()===0)&&!ui.freezeLayer;
+  for(var n=0;n<400;n++){
+    var useOne;
+    if(fixed.one)useOne=true;
+    else if(fixed.top||fixed.bottom)useOne=false;
+    else if(ui.onlyOne&&canOne)useOne=true;
+    else if(!canTwo)useOne=true;
+    else if(!canOne)useOne=false;
+    else useOne=Math.random()<0.22;
+    if(!useOne&&!canTwo)continue;
+    var c={};
+    if(useOne)c.one=fixed.one||pick(p.one);
+    else{c.top=fixed.top||pick(p.top);c.bottom=fixed.bottom||pick(p.bottom);}
+    c.shoes=fixed.shoes||pick(p.shoes);
+    if(fixed.layer)c.layer=fixed.layer;
+    else if(ui.forceLayer&&p.layer.length)c.layer=pick(p.layer);
+    else if(layerOK&&p.layer.length&&Math.random()<layerProb)c.layer=pick(p.layer);
+    var key=[c.one,c.top,c.bottom,c.layer,c.shoes].map(function(x){return x?x.id:'-';}).join('|');
+    if(found.has(key))continue;
+    var r=scoreCombo(c,ctx);
+    found.set(key,{c:c,key:key,s:r.s,tags:r.tags,harm:r.harm});
+  }
+  var list=Array.from(found.values()).sort(function(a,b){return b.s-a.s;});
+  if(!list.length)return null;
+  if(opts.free)return pickTop(list);
+  var fresh=list.filter(function(x){return !ui.seen.has(x.key);});
+  if(!fresh.length){ui.seen.clear();fresh=list;}
+  var ch=pickTop(fresh);
+  ui.seen.add(ch.key);
+  return ch;
+}
+function regen(){
+  ui.wxUsed=effectiveWeatherId();
+  if(!ready()){ui.current=null;ui.locks={};return;}
+  var r=generate();
+  if(!r)return;
+  var cur={};
+  SLOTS.forEach(function(k){if(r.c[k])cur[k]=r.c[k].id;});
+  cur.tags=r.tags;cur.harm=r.harm;
+  ui.current=cur;
+  Object.keys(ui.locks).forEach(function(k){if(!cur[k])delete ui.locks[k];});
+}
+function swapSlot(slot){
+  var cur=ui.current;if(!cur||!cur[slot])return;
+  var before=curIds().slice(),saved=ui.locks,L={};
+  SLOTS.forEach(function(k){if(k!==slot&&cur[k])L[k]=true;});
+  ui.locks=L;ui.onlyOne=(slot==='one');ui.freezeLayer=(slot!=='layer'&&!cur.layer);ui.forceLayer=(slot==='layer');
+  var r=null;
+  try{r=generate();}finally{ui.locks=saved;ui.onlyOne=false;ui.freezeLayer=false;ui.forceLayer=false;}
+  if(!r)return;
+  var nc={};SLOTS.forEach(function(k){if(r.c[k])nc[k]=r.c[k].id;});
+  nc.tags=r.tags;nc.harm=r.harm;
+  ui.current=nc;
+  Object.keys(ui.locks).forEach(function(k){if(!nc[k])delete ui.locks[k];});
+  renderOutfit();
+  if(sameIds(before,curIds()))toast('That is the only option for this slot right now');
+}
+function comboFromIds(ids){
+  var c={};
+  for(var i=0;i<ids.length;i++){var it=byId(ids[i]);if(!it)return null;c[it.cat]=it;}
+  return c;
+}
+function initCurrent(){
+  var e=todayEntry();
+  if(e){
+    var c=comboFromIds(e.ids);
+    if(c&&c.shoes&&(c.one||(c.top&&c.bottom))){
+      var cur={};
+      SLOTS.forEach(function(k){if(c[k])cur[k]=c[k].id;});
+      var rr=scoreCombo(c,makeCtx());cur.tags=rr.tags;cur.harm=rr.harm;
+      ui.wxUsed=effectiveWeatherId();ui.current=cur;ui.seen.add(SLOTS.map(function(k){return cur[k]||'-';}).join('|'));
+      return;
+    }
+  }
+  regen();
+}
+function curIds(){var c=ui.current;if(!c)return [];return ['one','top','bottom','layer','shoes'].map(function(k){return c[k];}).filter(Boolean);}
+function sameIds(a,b){return a.slice().sort().join(',')===b.slice().sort().join(',');}
+
+/* ---------- rendering ---------- */
+var ICON_UP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>';
+var ICON_DOWN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>';
+var ICON_SWAP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>';
+var ICON_LOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+var ICON_SHUFFLE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h3.5c2 0 3.2 1 4.3 2.6l2.4 3.8c1.1 1.6 2.3 2.6 4.3 2.6H21"/><path d="M3 17h3.5c2 0 3.2-1 4.3-2.6"/><path d="M13.2 8.6C14.3 7.6 15.5 7 17.5 7H21"/><path d="m18.5 4.5 2.5 2.5-2.5 2.5"/><path d="m18.5 14.5 2.5 2.5-2.5 2.5"/></svg>';
+
+function renderDate(){
+  var d=new Date(),txt=longDate(d),w=ui.weather;
+  if(w&&w.cur!=null&&Date.now()-w.fetched<5400000)txt+=' · '+Math.round(w.cur)+'° now';
+  $('dateline').textContent=txt;
+}
+function renderCount(){$('count').textContent=state.items.length?String(state.items.length):'';}
+function renderSync(){
+  $('sync').textContent='Saved on this device only';
+}
+function renderControls(){
+  var keep=$('wx-city')?$('wx-city').value:'';
+  var W=currentWeather(),live=state.prefs.weather==='live',sw=wxWindow();
+  var P=buildPlan(),todayCl=classesFor(new Date().getDay());
+  var planOpts=(todayCl.length?[{id:'auto',label:'From timetable',sub:todayCl.length+(todayCl.length===1?' class':' classes')}]:[]).concat(PLANS);
+  var wlabel=(live&&sw)?('Live · '+W.label+' '+Math.round(sw.avg)+'°'):(W.label+' '+W.sub);
+  var h='<button type="button" class="sumbtn" data-action="ctl" aria-expanded="'+ui.ctlOpen+'" aria-controls="ctlbody"><b>'+esc(wlabel)+' · '+esc(P.label)+'</b><span class="chg">'+(ui.ctlOpen?'Done':'Change')+'</span></button>';
+  h+='<div class="panel ctlbody'+(ui.ctlOpen?'':' collapsed')+'" id="ctlbody">';
+  h+='<fieldset class="grp"><legend class="mono">Weather today</legend><div class="chips">';
+  if(state.prefs.loc){
+    h+='<button type="button" class="chip" data-weather="live" aria-pressed="'+live+'"><b>Live</b><small>'+(sw?Math.round(sw.lo)+'–'+Math.round(sw.hi)+'°':'forecast')+'</small></button>';
+  }
+  WEATHER.forEach(function(w){h+='<button type="button" class="chip" data-weather="'+w.id+'" aria-pressed="'+(!live&&w.id===W.id)+'"><b>'+esc(w.label)+'</b><small>'+esc(w.sub)+'</small></button>';});
+  h+='</div><div id="wx" style="margin-top:12px"></div></fieldset><fieldset class="grp"><legend class="mono">Your day</legend><div class="chips">';
+  planOpts.forEach(function(p){h+='<button type="button" class="chip" data-plan="'+p.id+'" aria-pressed="'+(p.id===P.id)+'"><b>'+esc(p.label)+'</b><small>'+esc(p.sub)+'</small></button>';});
+  var ww=state.prefs.wxWeight||'style';
+  h+='</div></fieldset><fieldset class="grp"><legend class="mono">How much weather matters</legend><div class="chips">';
+  [['style','Style first','rarely overrides'],['balanced','Balanced','some say'],['strict','Weather first','strict']].forEach(function(o){h+='<button type="button" class="chip" data-wxw="'+o[0]+'" aria-pressed="'+(o[0]===ww)+'"><b>'+o[1]+'</b><small>'+o[2]+'</small></button>';});
+  h+='</div></fieldset></div>';
+  $('controls').innerHTML=h;
+  renderWx();
+  if(keep&&$('wx-city'))$('wx-city').value=keep;
+}
+function slotRow(slot,label,it){
+  var c=colorOf(it.color),locked=!!ui.locks[slot];
+  return '<li class="slot"><span class="swatch" style="--c:'+c.hex+';'+photoCss(it.id)+'"></span><div><span class="mono lbl">'+esc(label)+'</span><span class="nm">'+esc(it.name)+(it.sample?'<span class="tagsample">sample</span>':'')+'</span><span class="meta">'+esc(c.name)+' · '+esc(STYLE_LABEL[it.style]||'Casual')+(slot==='shoes'?'':' · '+esc(WARM_LABEL[it.warm]||'Medium'))+'</span></div>'+
+    '<div class="sact"><button type="button" class="lock" data-swap="'+slot+'" aria-label="Swap '+esc(it.name)+' for another">'+ICON_SWAP+'</button><button type="button" class="lock" data-lock="'+slot+'" aria-pressed="'+locked+'" aria-label="'+(locked?'Unlock ':'Keep ')+esc(it.name)+(locked?'':' when shuffling')+'">'+ICON_LOCK+'</button></div></li>';
+}
+function renderOutfit(){
+  var el=$('outfit'),cur=ui.current,now=new Date();
+  var W=currentWeather();
+  var P=buildPlan();
+  var head='<div class="hangtag"><span class="hole"></span><span>'+esc(tagDate(now))+' · '+esc(wxTag(W))+' · '+esc(P.label)+'</span></div>';
+  if(!cur){
+    var p=pools(),need=[];
+    if(!p.shoes.length)need.push('a pair of shoes');
+    if(!((p.top.length&&p.bottom.length)||p.one.length)){
+      if(!p.top.length&&!p.one.length)need.push('a top');
+      if(!p.bottom.length&&!p.one.length)need.push('a bottom');
+    }
+    el.innerHTML='<article class="tagcard empty">'+head+'<h2>Add a few pieces first</h2><p>To build an outfit I need '+esc(need.join(' and ')||'a few more pieces')+'. A top, a bottom and shoes is enough to start.</p><button type="button" class="btn primary" data-tab="wardrobe">Open wardrobe</button></article>';
+    return;
+  }
+  var h='<article class="tagcard">'+head+'<ul class="slots">';
+  var layer=byId(cur.layer||'');
+  if(layer)h+=slotRow('layer','Layer',layer);
+  else{
+    var hasLayers=pools().layer.length>0;
+    h+='<li class="slot none"><div><span class="mono lbl">Layer</span><span class="nm">'+(hasLayers?(layerWait()>0?'Resting. Next layer in '+layerWait()+(layerWait()===1?' day':' days'):'Skip it today'):'None in your wardrobe yet')+'</span></div></li>';
+  }
+  if(cur.one)h+=slotRow('one','One-piece',byId(cur.one));
+  if(cur.top)h+=slotRow('top','Top',byId(cur.top));
+  if(cur.bottom)h+=slotRow('bottom','Bottom',byId(cur.bottom));
+  if(cur.shoes)h+=slotRow('shoes','Shoes',byId(cur.shoes));
+  h+='</ul>';
+  if(cur.harm!=null){var hl2=harmLabel(cur.harm);h+='<div class="harm"><span class="mono">Colour match</span><span class="pill'+(hl2==='Strong'?' fx':'')+'">'+hl2+'</span></div>';}
+  if(cur.tags&&cur.tags.length){h+='<ul class="why">'+cur.tags.map(function(t){return '<li>'+esc(t)+'</li>';}).join('')+'</ul>';}
+  var e=todayEntry(),same=!!e&&sameIds(e.ids,curIds());
+  h+='<div class="actions"><button type="button" class="btn" data-action="shuffle">'+ICON_SHUFFLE+'Shuffle</button>';
+  h+=same?'<button type="button" class="btn primary" data-action="unwear">Wearing today · Undo</button>':'<button type="button" class="btn primary" data-action="wear">Wear this today</button>';
+  h+='</div>';
+  var rv=state.rated[curIds().slice().sort().join(',')]||0;
+  h+='<div class="rate" role="group" aria-label="Rate this outfit"><span class="mono">How is this one?</span><button type="button" class="btn small" data-rate="1" aria-pressed="'+(rv===1)+'">'+ICON_UP+'Like</button><button type="button" class="btn small" data-rate="-1" aria-pressed="'+(rv===-1)+'">'+ICON_DOWN+'Not for me</button><button type="button" class="btn small" data-action="shareoutfit">'+ICON_SHARE+'Share</button></div>';
+  if(same)h+='<p class="logged">Logged. Tomorrow’s pick will skip these pieces. <button type="button" class="link" data-action="washworn">Send them to the wash</button></p>';
+  else if(Object.keys(ui.locks).length)h+='<p class="logged">Locked pieces stay put when you shuffle.</p>';
+  h+='</article>';
+  el.innerHTML=h;
+}
+var tmrCache={sig:'',p:null};
+function renderTomorrow(){
+  var el=$('tmr');
+  if(!el||ui.tab!=='today')return;
+  if(!ready()){el.innerHTML='';return;}
+  var sig=planSig()+'|'+(ui.current?curIds().join(','):'');
+  if(tmrCache.sig!==sig){tmrCache.p=planWeek(1)[0];tmrCache.sig=sig;}
+  var p=tmrCache.p;
+  if(!p||p.none){el.innerHTML='';return;}
+  var cl=classesFor(p.dow),D=dayInfo(cl),kinds={};
+  cl.forEach(function(c){kinds[CLASS_TYPES[c.type]]=1;});
+  var info=cl.length?(cl.length+(cl.length===1?' class':' classes')+' · '+fmtTime(D.first)+' to '+fmtTime(D.last)+' · '+Object.keys(kinds).join(', ')):'Free day';
+  var its=p.ids.map(byId).filter(Boolean);
+  var late=new Date().getHours()>=18;
+  el.innerHTML='<div class="panel recent"><h2>'+(late?'Lay it out tonight':'Tomorrow')+'</h2><div class="rrow"><span class="mono">'+esc(shortDate(p.d))+'</span><div><div class="dots">'+its.map(function(i){return '<i style="--c:'+colorOf(i.color).hex+'"></i>';}).join('')+'</div><div class="nm" style="font-weight:600">'+esc(its.map(function(i){return i.name;}).join(', '))+'</div><div class="t">'+esc(info)+'</div></div></div><p class="muted" style="margin:8px 0 0">A preview. It adjusts if you change today’s outfit or the forecast.</p></div>';
+}
+function renderRecent(){
+  var items=state.history.slice().sort(function(a,b){return a.d<b.d?1:-1;}).slice(0,7),h='<div class="panel recent"><h2>Last worn</h2>';
+  var rows=items.map(function(e){
+    var its=e.ids.map(byId).filter(Boolean);
+    if(!its.length)return '';
+    return '<div class="rrow"><span class="mono">'+esc(shortDate(e.d))+'</span><div><div class="dots">'+its.map(function(i){return '<i style="--c:'+colorOf(i.color).hex+'"></i>';}).join('')+'</div><div class="t">'+esc(its.map(function(i){return i.name;}).join(', '))+'</div></div></div>';
+  }).join('');
+  h+=rows||'<p class="muted">Nothing logged yet. Tap “Wear this today” and tomorrow’s pick will avoid repeats.</p>';
+  $('recent').innerHTML=h+'</div>';
+  renderTomorrow();
+}
+function renderBanner(){
+  var hasSample=state.items.some(function(i){return i.sample;});
+  $('banner').innerHTML=hasSample?'<div class="banner"><span>These are sample clothes so you can try the app. Add your own, then clear the samples.</span><button type="button" class="btn small" data-action="clearsamples">Clear samples</button></div>':'';
+}
+var QUICK=[
+  ['White t-shirt','top','white','casual',1],['Black t-shirt','top','black','casual',1],
+  ['Navy full-sleeve tee','top','navy','casual',2],['Light blue formal shirt','top','sky','smart',1],
+  ['Blue jeans','bottom','denim','casual',2],['Black jeans','bottom','black','casual',2],
+  ['Beige chinos','bottom','beige','smart',2],['Black formal trousers','bottom','black','smart',2],
+  ['Grey joggers','bottom','grey','sporty',2],
+  ['White sneakers','shoes','white','casual',1,false],['Black sneakers','shoes','black','casual',1,true],['Brown loafers','shoes','brown','smart',1],
+  ['Grey hoodie','layer','grey','casual',3],['Denim jacket','layer','denim','casual',2],['Black bomber jacket','layer','black','casual',3]
+];
+function matchItem(it){
+  var q=(ui.q||'').trim().toLowerCase(),f=ui.filt||'all';
+  if(q){var c=colorOf(it.color);if((it.name+' '+c.name+' '+(STYLE_LABEL[it.style]||'')).toLowerCase().indexOf(q)<0)return false;}
+  if(f==='dirty'&&!it.dirty)return false;
+  if(f==='clean'&&it.dirty)return false;
+  if(f==='new'&&(ui.wcCache||{})[it.id])return false;
+  return true;
+}
+function renderQuick(){
+  var have={};state.items.forEach(function(i){have[i.name.toLowerCase()]=1;});
+  var left=[];QUICK.forEach(function(q,ix){if(!have[q[0].toLowerCase()])left.push([q,ix]);});
+  if(!left.length){$('quick').innerHTML='';return;}
+  $('quick').innerHTML='<div class="quick"><h3>Quick add <span class="mono">basics</span></h3><div class="chips">'+left.slice(0,9).map(function(x){return '<button type="button" class="chip" data-quick="'+x[1]+'"><b>'+esc(x[0][0])+'</b><small>'+esc(colorOf(x[0][2]).name)+'</small></button>';}).join('')+'</div></div>';
+}
+function renderList(){
+  if(ui.tab!=='wardrobe'){ui.listDirty=true;return;}
+  ui.listDirty=false;
+  var lw=lastWornMap(),te=todayEntry(),h='';
+  var wc=ui.wcCache=wearCounts();
+  function worn(it){
+    if(it.dirty)return 'In the wash';
+    if(te&&te.ids.indexOf(it.id)>-1)return 'Worn today';
+    var d=lw[it.id];
+    return d==null?'Not worn yet':'Worn '+ago(d)+' · '+wc[it.id]+(wc[it.id]===1?' time':' times');
+  }
+  CATS.forEach(function(cat){
+    var its=state.items.filter(function(i){return i.cat===cat.id&&matchItem(i);});
+    h+='<section class="group"><h3>'+esc(cat.plural)+' <span class="mono">'+its.length+'</span></h3>';
+    if(cat.id==='layer'){var lr=state.prefs.layerRule||'weekly';h+='<div class="chips" style="margin:8px 0 6px"><button type="button" class="chip" data-layerrule="weekly" aria-pressed="'+(lr==='weekly')+'"><b>Once a week</b><small>at most</small></button><button type="button" class="chip" data-layerrule="free" aria-pressed="'+(lr==='free')+'"><b>Whenever it helps</b><small>no limit</small></button></div>';}
+    if(!its.length)h+='<p class="muted">'+((ui.q||(ui.filt&&ui.filt!=='all'))?'No match.':'None yet.')+'</p>';
+    its.forEach(function(it){
+      var c=colorOf(it.color);
+      h+='<div class="irow'+(it.dirty?' dirty':'')+'"><span class="swatch" style="--c:'+c.hex+';'+photoCss(it.id)+'"></span><div><div class="nm">'+esc(it.name)+(it.sample?'<span class="tagsample">sample</span>':'')+'</div><div class="meta">'+esc(c.name)+' · '+esc(STYLE_LABEL[it.style]||'Casual')+((it.pattern&&it.pattern!=='solid')?' \u00b7 '+(it.pattern==='striped'?'Striped':'Printed'):'')+(it.cat==='shoes'?(it.rain?' · Rain-safe':''):' · '+esc(WARM_LABEL[it.warm]||'Medium'))+' · '+esc(worn(it))+'</div></div><div class="iact"><button type="button" class="rm" data-photo="'+esc(it.id)+'" aria-label="'+(getPhoto(it.id)?'Change photo of ':'Add a photo of ')+esc(it.name)+'">'+(getPhoto(it.id)?'Photo':'+ Photo')+'</button><button type="button" class="rm" data-wash="'+esc(it.id)+'" aria-label="'+(it.dirty?'Mark clean: ':'Send to the wash: ')+esc(it.name)+'">'+(it.dirty?'Clean':'Wash')+'</button><button type="button" class="rm" data-remove="'+esc(it.id)+'" aria-label="Remove '+esc(it.name)+'">Remove</button></div></div>';
+    });
+    h+='</section>';
+  });
+  $('list').innerHTML=h;
+  Array.prototype.forEach.call(document.querySelectorAll('[data-wfilt]'),function(b){b.setAttribute('aria-pressed',String(b.dataset.wfilt===(ui.filt||'all')));});
+  renderQuick();
+  renderStats();
+}
+var BUY_COLORS=['white','black','navy','beige','denim','olive','grey','brown','sky','maroon'];
+function goodCount(items){
+  var by={top:[],bottom:[],one:[],shoes:[]},n=0,t,b,o,k;
+  items.forEach(function(i){if(by[i.cat])by[i.cat].push(i);});
+  function ok(x,y){return stylePair(x.style,y.style)>-3;}
+  for(t=0;t<by.top.length;t++){for(b=0;b<by.bottom.length;b++){for(k=0;k<by.shoes.length;k++){
+    var T=by.top[t],B=by.bottom[b],S=by.shoes[k];
+    if(!ok(T,B)||!ok(T,S)||!ok(B,S))continue;
+    if(colorEval(T,B,null,S).score>=CAL.pass)n++;
+  }}}
+  for(o=0;o<by.one.length;o++){for(k=0;k<by.shoes.length;k++){
+    if(!ok(by.one[o],by.shoes[k]))continue;
+    if(colorEval(by.one[o],null,null,by.shoes[k]).score>=CAL.pass)n++;
+  }}
+  return n;
+}
+var nbMemo={sig:'',v:null};
+function nextBuys(){
+  var items=state.items,sig=items.map(function(i){return i.id+i.cat+i.color+i.style+i.pattern;}).join(',');
+  if(nbMemo.sig===sig&&nbMemo.v)return nbMemo.v;
+  var r=nextBuysCalc(items);nbMemo.sig=sig;nbMemo.v=r;return r;
+}
+function nextBuysCalc(items){
+  var base=goodCount(items),out=[];
+  ['top','bottom','shoes'].forEach(function(cat){
+    BUY_COLORS.forEach(function(col){
+      if(items.some(function(i){return i.cat===cat&&i.color===col;}))return;
+      var g=goodCount(items.concat([{id:'hyp',cat:cat,color:col,style:'casual',pattern:'solid',warm:2}]))-base;
+      if(g>0)out.push({cat:cat,color:col,gain:g});
+    });
+  });
+  out.sort(function(a,b){return b.gain-a.gain;});
+  return {base:base,top:out.slice(0,3)};
+}
+function colorMixHtml(){
+  var c={n:0,e:0,c:0,w:0},t=0;
+  state.items.forEach(function(i){if(i.cat==='shoes')return;c[colorOf(i.color).fam]++;t++;});
+  if(!t)return '';
+  var meta=[['n','Neutrals','#8C919B'],['e','Earth tones','#6B7440'],['c','Cool tones','#2B8A8A'],['w','Warm brights','#C5352C']];
+  var bar='<div class="cbar" role="img" aria-label="Colour mix of your clothes">',leg=[];
+  meta.forEach(function(m){
+    var pct=Math.round(c[m[0]]/t*100);
+    if(c[m[0]]){bar+='<span style="width:'+(c[m[0]]/t*100).toFixed(1)+'%;background:'+m[2]+'"></span>';leg.push(m[1]+' '+pct+'%');}
+  });
+  bar+='</div>';
+  var n=c.n/t,tip=n>0.7?'Mostly neutrals, so everything mixes. One colour piece would add personality.':(n<0.3?'Lots of colour. A few more neutrals would calm it down and widen your options.':'A healthy mix of neutrals and colour.');
+  return bar+'<p class="legend" style="margin:0 0 10px">'+esc(leg.join(' · '))+'. '+esc(tip)+'</p>';
+}
+function renderStats(){
+  var el=$('stats');if(!el)return;
+  var dirty=state.items.filter(function(i){return i.dirty;}),h='';
+  if(dirty.length)h+='<div class="banner"><span>'+dirty.length+(dirty.length===1?' piece is':' pieces are')+' in the wash and won’t be picked.</span><button type="button" class="btn small" data-action="allclean">All clean</button></div>';
+  var nb=nextBuys();
+  h+='<div class="panel statp"><h2 class="sec-h">Wardrobe check</h2>'+colorMixHtml()+'<p class="muted" style="margin-bottom:8px">Your pieces can make about '+nb.base+' outfits that pass the colour test.</p>';
+  if(nb.top.length){
+    h+='<p class="mono" style="margin:10px 0 2px">Best next buy</p>';
+    nb.top.forEach(function(x){
+      var cn=colorOf(x.color).name.toLowerCase(),lab=x.cat==='shoes'?'pair of shoes':x.cat;
+      h+='<div class="srow"><span class="mono">+'+x.gain+' outfits</span><span>A '+esc(cn)+' '+esc(lab)+'</span></div>';
+    });
+  }else h+='<p class="muted">Nothing obvious is missing. Your colours already work well together.</p>';
+  h+='</div>';
+  if(state.history.length){
+    var wc=wearCounts(),ranked=state.items.filter(function(i){return wc[i.id];}).sort(function(a,b){return wc[b.id]-wc[a.id];}).slice(0,3);
+    var unworn=state.items.filter(function(i){return !wc[i.id]&&!i.sample;});
+    h+='<div class="panel statp"><h2 class="sec-h">Your wear so far</h2>';
+    if(ranked.length)h+='<div class="srow"><span class="mono">Most worn</span><span>'+ranked.map(function(i){return esc(i.name)+' ×'+wc[i.id];}).join(', ')+'</span></div>';
+    if(unworn.length)h+='<div class="srow"><span class="mono">Not worn yet</span><span>'+unworn.slice(0,4).map(function(i){return esc(i.name);}).join(', ')+(unworn.length>4?' and '+(unworn.length-4)+' more':'')+'</span></div>';
+    h+='<p class="legend">Based on the last '+state.history.length+(state.history.length===1?' day':' days')+' you logged.</p></div>';
+  }
+  el.innerHTML=h;
+}
+function rate(v){
+  var ids=curIds();if(!ids.length)return;
+  var key=ids.slice().sort().join(','),old=state.rated[key]||0;
+  if(old===v)v=0;
+  var delta=v-old;
+  ids.forEach(function(id){state.likes[id]=Math.max(-3,Math.min(3,(state.likes[id]||0)+delta));});
+  if(v===0)delete state.rated[key];else{delete state.rated[key];state.rated[key]=v;}
+  touch();
+  if(v===-1){regen();renderOutfit();toast('Noted. Here’s another.');}
+  else renderOutfit();
+}
+function classRow(c,extra){
+  var fx=!!FX_TYPES[c.type];
+  return '<div class="crow"><div><div class="cn">'+esc(c.name)+(c.sample?'<span class="tagsample">sample</span>':'')+'</div><div class="mono">'+esc(fmtTime(c.start))+' – '+esc(fmtTime(c.end))+'</div></div><div>'+(extra||'<span class="pill'+(fx?' fx':'')+'">'+esc(CLASS_TYPES[c.type])+'</span>')+'</div></div>';
+}
+function renderClasses(){
+  var idx=new Date().getDay(),cl=classesFor(idx),dn=DAY_LONG[idx];
+  var h='<div class="panel classes"><div class="ch"><h2>Today’s classes</h2><span class="mono">'+esc(dn)+'</span></div>';
+  if(!cl.length){
+    h+='<p class="muted">No classes entered for '+esc(dn)+'. Add them in Timetable and the outfit will plan around them.</p><div class="actions"><button type="button" class="btn small" data-tab="timetable">Open timetable</button></div>';
+  }else{
+    var D=dayInfo(cl),lo=Math.min(8*60,Math.floor(D.first/60)*60),hi=Math.max(18*60,Math.ceil(D.last/60)*60),span=hi-lo;
+    h+='<div class="track" aria-hidden="true">';
+    cl.forEach(function(c){
+      var s=toMin(c.start),e=toMin(c.end);
+      h+='<i class="blk'+(FX_TYPES[c.type]?' fx':'')+'" style="left:'+((s-lo)/span*100).toFixed(2)+'%;width:'+(Math.max(e-s,15)/span*100).toFixed(2)+'%" title="'+esc(c.name)+'"></i>';
+    });
+    h+='</div><div class="ticks" aria-hidden="true">';
+    for(var m=lo;m<=hi;m+=180){
+      var pct=(m-lo)/span*100,tr=pct<8?'0':(pct>92?'-100%':'-50%');
+      h+='<span style="left:'+pct.toFixed(2)+'%;transform:translateX('+tr+')">'+esc(fmtHour(m))+'</span>';
+    }
+    h+='</div>';
+    cl.forEach(function(c){h+=classRow(c);});
+    var line='On campus '+fmtTime(D.first)+' to '+fmtTime(D.last)+(D.long?'. Long day, so shoes you can walk in.':'.');
+    h+='<p class="legend">'+esc(line)+' Yellow marks the classes that change what you wear.</p>';
+    h+='<div class="actions"><button type="button" class="btn small" data-tab="timetable">Edit timetable</button></div>';
+  }
+  $('classes').innerHTML=h+'</div>';
+}
+function planWeek(n){
+  var out=[],extra=[],base=new Date();
+  if(todayEntry())extra.push(todayEntry());
+  else if(ui.current)extra.push({d:todayKey(),ids:curIds()});
+  for(var i=1;i<=(n||6);i++){
+    var d=new Date(base.getFullYear(),base.getMonth(),base.getDate()+i),key=dkey(d),dow=d.getDay();
+    var ctx=makeCtx(dow,key,extra),r=generate({free:true,ctx:ctx,layerOK:layerWait(key,extra)===0});
+    if(!r){out.push({d:key,dow:dow,none:true});continue;}
+    var ids=[];SLOTS.forEach(function(k){if(r.c[k])ids.push(r.c[k].id);});
+    extra.push({d:key,ids:ids});
+    out.push({d:key,dow:dow,ids:ids,tags:r.tags,harm:r.harm});
+  }
+  return out;
+}
+function planSig(){return JSON.stringify([state.items.map(function(i){return i.id+(i.dirty?'d':'');}),state.timetable,state.prefs,state.history.length,state.likes,Object.keys(state.rated).length,todayKey()]);}
+function renderWeek(force){
+  var sig=planSig();
+  if(force||!ui.plan||ui.planSig!==sig){ui.plan=planWeek();ui.planSig=sig;}
+  var h='';
+  ui.plan.forEach(function(p){
+    var cl=classesFor(p.dow),D=dayInfo(cl),kinds={};
+    cl.forEach(function(c){kinds[CLASS_TYPES[c.type]]=1;});
+    var info=cl.length?(cl.length+(cl.length===1?' class':' classes')+' · '+fmtTime(D.first)+' to '+fmtTime(D.last)+' · '+Object.keys(kinds).join(', ')):'Free day';
+    if(p.none){h+='<div class="rrow"><span class="mono">'+esc(shortDate(p.d))+'</span><div><div class="t">Add a top, bottom and shoes to plan this day.</div><div class="t">'+esc(info)+'</div></div></div>';return;}
+    var its=p.ids.map(byId).filter(Boolean);
+    h+='<div class="rrow"><span class="mono">'+esc(shortDate(p.d))+'</span><div><div class="dots">'+its.map(function(i){return '<i style="--c:'+colorOf(i.color).hex+'"></i>';}).join('')+'</div><div class="nm" style="font-weight:600">'+esc(its.map(function(i){return i.name;}).join(', '))+'</div><div class="t">'+esc(info)+'</div><div class="t">Colour match '+esc(harmLabel(p.harm))+(p.tags&&p.tags[0]?' · '+esc(p.tags[0]):'')+'</div></div></div>';
+  });
+  $('weeklist').innerHTML=h||'<p class="muted">Add a few pieces in Wardrobe to plan the week.</p>';
+  renderPack();renderLookback();
+}
+var PACK_WX=[['warm','Hot or warm'],['mild','Mild'],['cool','Cool'],['rain','Rainy']];
+function capsule(days,wxId){
+  var W=WEATHER.filter(function(w){return w.id===wxId;})[0]||WEATHER[1];
+  function cat(c){
+    var all=state.items.filter(function(i){return i.cat===c;});
+    if(c==='shoes'||c==='layer')return all;
+    var fit=all.filter(function(i){return Math.abs(i.warm-W.ideal)<=1;});
+    return fit.length?fit:all;
+  }
+  var q={top:Math.min(6,Math.max(2,Math.ceil(days*0.7))),bottom:days<=2?1:(days<=5?2:3),shoes:days<=2?1:2,layer:(wxId==='warm')?0:1};
+  var pools2={top:cat('top'),bottom:cat('bottom'),shoes:cat('shoes'),layer:cat('layer')};
+  if(!pools2.top.length||!pools2.bottom.length||!pools2.shoes.length)return {sel:[],good:0,q:q,missing:true};
+  var seed=null,bestS=-99;
+  pools2.top.forEach(function(t){pools2.bottom.forEach(function(b){pools2.shoes.forEach(function(sh){
+    if(stylePair(t.style,b.style)<=-3||stylePair(t.style,sh.style)<=-3||stylePair(b.style,sh.style)<=-3)return;
+    var sc=colorEval(t,b,null,sh).score;
+    if(sc>bestS){bestS=sc;seed=[t,b,sh];}
+  });});});
+  if(!seed)seed=[pools2.top[0],pools2.bottom[0],pools2.shoes[0]];
+  var sel=seed.slice();
+  function cnt(c){return sel.filter(function(i){return i.cat===c;}).length;}
+  var guard=0;
+  while(guard++<30){
+    var cats=['top','bottom','shoes'].filter(function(c){return cnt(c)<q[c]&&pools2[c].some(function(i){return sel.indexOf(i)<0;});});
+    if(!cats.length)break;
+    var base=goodCount(sel),bestG=-1,bestP=null;
+    cats.forEach(function(c){pools2[c].forEach(function(p){
+      if(sel.indexOf(p)>-1)return;
+      var g=goodCount(sel.concat([p]))-base;
+      sel.forEach(function(x){g+=pairScore(p,x)*0.01;});
+      if(g>bestG){bestG=g;bestP=p;}
+    });});
+    if(!bestP)break;
+    sel.push(bestP);
+  }
+  if(q.layer&&pools2.layer.length){
+    var bl=null,bs=-99;
+    pools2.layer.forEach(function(l){var sc=0;sel.forEach(function(x){if(x.cat==='top'||x.cat==='bottom')sc+=pairScore(l,x);});if(sc>bs){bs=sc;bl=l;}});
+    if(bl)sel.push(bl);
+  }
+  return {sel:sel,good:goodCount(sel),q:q};
+}
+function renderPack(){
+  var el=$('pack');if(!el)return;
+  var pk=ui.pack||(ui.pack={days:4,wx:'warm'}),ticks=state.prefs.packTicks||{};
+  var h='<h2 class="sec-h">Pack for a trip</h2><p class="muted ttgap">Pick the days and the weather. I choose the fewest pieces that mix into the most outfits that pass the colour test.</p>';
+  h+='<fieldset class="grp"><legend class="mono">Days away</legend><div class="chips">'+[2,3,4,5,7,10].map(function(d){return '<button type="button" class="chip day" data-pdays="'+d+'" aria-pressed="'+(pk.days===d)+'"><b>'+d+'</b></button>';}).join('')+'</div></fieldset>';
+  h+='<fieldset class="grp"><legend class="mono">Weather there</legend><div class="chips">'+PACK_WX.map(function(w){return '<button type="button" class="chip" data-pwx="'+w[0]+'" aria-pressed="'+(pk.wx===w[0])+'"><b>'+w[1]+'</b></button>';}).join('')+'</div></fieldset>';
+  var cap=capsule(pk.days,pk.wx);
+  if(cap.missing){
+    h+='<p class="muted">Add at least a top, a bottom and shoes to your wardrobe and I can build a packing list.</p>';
+  }else{
+    var done=cap.sel.filter(function(i){return ticks[i.id];}).length;
+    h+='<div class="packhead"><b>'+cap.sel.length+' pieces</b><span class="mono">'+cap.good+' outfits pass the colour test</span><span class="mono">'+done+' of '+cap.sel.length+' packed</span></div>';
+    if(cap.good<pk.days)h+='<p class="muted">That covers '+cap.good+' of your '+pk.days+' days without repeating an outfit. Another top or bottom would help.</p>';
+    else h+='<p class="muted">Enough for '+pk.days+' days without repeating an outfit.</p>';
+    CATS.forEach(function(c){
+      cap.sel.filter(function(i){return i.cat===c.id;}).forEach(function(i){
+        h+='<label class="packrow'+(ticks[i.id]?' ticked':'')+'"><input type="checkbox" data-ptick="'+esc(i.id)+'"'+(ticks[i.id]?' checked':'')+'><span class="swatch" style="--c:'+colorOf(i.color).hex+';'+photoCss(i.id)+'"></span><span><span class="nm">'+esc(i.name)+'</span><br><span class="mono">'+esc(c.label)+'</span></span></label>';
+      });
+    });
+    h+='<div class="actions"><button type="button" class="btn small" data-action="packreset">Clear ticks</button></div>';
+  }
+  el.innerHTML=h;
+}
+function renderLookback(){
+  var el=$('lookback');if(!el)return;
+  var map={};state.history.forEach(function(x){map[x.d]=x;});
+  var now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate()),tk=dkey(today);
+  var start=new Date(today.getFullYear(),today.getMonth(),today.getDate()-27);
+  start.setDate(start.getDate()-((start.getDay()+6)%7));
+  var span=Math.round((today-start)/864e5)+1,cells=Math.ceil(span/7)*7,logged=0,i;
+  for(i=0;i<28;i++){var dd=new Date(today.getFullYear(),today.getMonth(),today.getDate()-i);if(map[dkey(dd)])logged++;}
+  var streak=0,back=map[tk]?0:1;
+  while(map[dkey(new Date(today.getFullYear(),today.getMonth(),today.getDate()-back-streak))])streak++;
+  var h='<h2 class="sec-h">Look back</h2><p class="muted">'+logged+' of the last 28 days logged'+(streak>1?' \u00b7 '+streak+'-day streak':'')+'.</p><div class="cal">';
+  ['M','T','W','T','F','S','S'].forEach(function(l){h+='<span class="dh">'+l+'</span>';});
+  for(i=0;i<cells;i++){
+    var d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i),k=dkey(d),e=map[k];
+    if(k>tk){h+='<span class="cell fut"></span>';continue;}
+    if(!e){h+='<span class="cell off"><span>'+d.getDate()+'</span></span>';continue;}
+    var its=e.ids.map(byId).filter(Boolean).slice(0,3);
+    h+='<button type="button" data-calday="'+k+'" aria-pressed="'+(ui.calSel===k)+'" aria-label="'+esc(shortDate(k))+', outfit logged"><span>'+d.getDate()+'</span><span class="dots">'+its.map(function(it){return '<i style="--c:'+colorOf(it.color).hex+'"></i>';}).join('')+'</span></button>';
+  }
+  h+='</div>';
+  if(ui.calSel&&map[ui.calSel]){
+    var names=map[ui.calSel].ids.map(byId).filter(Boolean).map(function(it){return it.name;});
+    h+='<p class="legend"><b>'+esc(shortDate(ui.calSel))+'</b> \u00b7 '+esc(names.join(', ')||'Pieces since removed')+'</p>';
+  }else if(!state.history.length)h+='<p class="legend">Tap \u201cWear this today\u201d on the Today screen and your outfits build up here.</p>';
+  el.innerHTML=h;
+}
+function renderTimetable(){
+  var day=ui.ttDay;
+  $('tt-forday').textContent='Adding to '+DAY_LONG[day]+'. Switch the day on the right to fill in the rest of your week.';
+  $('ttdays').innerHTML=DAY_ORDER.map(function(d){
+    var n=(state.timetable[String(d)]||[]).length;
+    return '<button type="button" class="chip day" data-ttday="'+d+'" aria-pressed="'+(d===day)+'"><b>'+DAY_SHORT[d]+'</b><small>'+(n?n+(n===1?' class':' classes'):'free')+'</small></button>';
+  }).join('');
+  var hasSample=false;
+  Object.keys(state.timetable).forEach(function(k){state.timetable[k].forEach(function(c){if(c.sample)hasSample=true;});});
+  $('ttbanner').innerHTML=hasSample?'<div class="banner"><span>This is a sample timetable so you can see how it works. Replace it with your own.</span><button type="button" class="btn small" data-action="clearsamplett">Clear samples</button></div>':'';
+  var cl=classesFor(day),h='<section class="group"><h3>'+esc(DAY_LONG[day])+' <span class="mono">'+cl.length+'</span></h3>';
+  if(!cl.length)h+='<p class="muted">Free day. Add a class on the left, or leave it empty.</p>';
+  cl.forEach(function(c){
+    h+=classRow(c,'<span class="pill'+(FX_TYPES[c.type]?' fx':'')+'">'+esc(CLASS_TYPES[c.type])+'</span> <button type="button" class="rm" data-ttrm="'+esc(c.id)+'" aria-label="Remove '+esc(c.name)+'">Remove</button>');
+  });
+  $('ttlist').innerHTML=h+'</section>';
+}
+function renderAll(){
+  renderDate();renderCount();renderControls();renderOutfit();renderClasses();renderRecent();renderBanner();renderList();renderTimetable();renderSync();renderWelcome();
+}
+function setTab(t){
+  ui.tab=t;
+  ['today','week','timetable','wardrobe'].forEach(function(n){
+    $('panel-'+n).hidden=t!==n;
+    $('tab-'+n).setAttribute('aria-pressed',String(t===n));
+  });
+  if(t==='today'){renderControls();renderOutfit();renderClasses();renderRecent();}
+  else if(t==='timetable')renderTimetable();
+  else if(t==='week')renderWeek();
+  else renderList();
+  window.scrollTo(0,0);
+}
+
+/* ---------- toast ---------- */
+var toastTimer=null;
+function toast(msg,undoLabel,undoFn){
+  var t=$('toast');
+  t.innerHTML='<span>'+esc(msg)+'</span>'+(undoFn?'<button type="button" id="toast-undo">'+esc(undoLabel||'Undo')+'</button>':'');
+  t.hidden=false;
+  if(undoFn){$('toast-undo').onclick=function(){undoFn();t.hidden=true;};}
+  clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.hidden=true;},5000);
+}
+
+/* ---------- changes ---------- */
+function itemsChanged(){
+  ui.current=null;ui.locks={};ui.seen.clear();
+  initCurrent();
+  renderCount();renderOutfit();renderBanner();renderList();renderRecent();
+  touch();
+}
+function wear(){
+  var ids=curIds();if(!ids.length)return;
+  var t=todayKey();
+  state.history=state.history.filter(function(h){return h.d!==t;});
+  state.history.push({d:t,ids:ids});
+  state.history.sort(function(a,b){return a.d<b.d?-1:1;});
+  state.history=state.history.slice(-60);
+  touch();renderOutfit();renderRecent();
+}
+function unwear(){
+  var t=todayKey();
+  state.history=state.history.filter(function(h){return h.d!==t;});
+  touch();renderOutfit();renderRecent();
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',function(ev){
+  var el=ev.target.closest('[data-tab],[data-action],[data-weather],[data-plan],[data-lock],[data-remove],[data-ttday],[data-ttrm],[data-wash],[data-rate],[data-layerrule],[data-wxw],[data-swap],[data-pdays],[data-pwx],[data-ptick],[data-calday],[data-wfilt],[data-quick],[data-photo]');
+  if(!el)return;
+  if(el.dataset.tab){setTab(el.dataset.tab);return;}
+  if(el.dataset.rate){rate(parseInt(el.dataset.rate,10));return;}
+  if(el.dataset.swap){swapSlot(el.dataset.swap);return;}
+  if(el.dataset.photo){ui.photoFor=el.dataset.photo;$('pic').click();return;}
+  if(el.dataset.wfilt){ui.filt=el.dataset.wfilt;renderList();return;}
+  if(el.dataset.quick){
+    var q=QUICK[parseInt(el.dataset.quick,10)];
+    if(q){state.items.push({id:uid(),name:q[0],cat:q[1],color:q[2],style:q[3],warm:q[4],rain:!!q[5],pattern:'solid'});itemsChanged();toast(q[0]+' added');}
+    return;
+  }
+  if(el.dataset.pdays){ui.pack=ui.pack||{days:4,wx:'warm'};ui.pack.days=parseInt(el.dataset.pdays,10);renderPack();return;}
+  if(el.dataset.pwx){ui.pack=ui.pack||{days:4,wx:'warm'};ui.pack.wx=el.dataset.pwx;renderPack();return;}
+  if(el.dataset.ptick){var pt=state.prefs.packTicks||(state.prefs.packTicks={});if(el.checked)pt[el.dataset.ptick]=1;else delete pt[el.dataset.ptick];touch();renderPack();return;}
+  if(el.dataset.calday){ui.calSel=(ui.calSel===el.dataset.calday)?null:el.dataset.calday;renderLookback();return;}
+  if(el.dataset.wxw){state.prefs.wxWeight=el.dataset.wxw;ui.seen.clear();touch();if(!todayEntry())regen();renderControls();renderOutfit();return;}
+  if(el.dataset.layerrule){state.prefs.layerRule=el.dataset.layerrule;ui.seen.clear();touch();if(!todayEntry())regen();renderList();renderOutfit();return;}
+  if(el.dataset.wash){
+    var wi=byId(el.dataset.wash);if(!wi)return;
+    wi.dirty=!wi.dirty;
+    itemsChanged();
+    toast(wi.dirty?wi.name+' is in the wash':wi.name+' is clean again');
+    return;
+  }
+  if(el.dataset.ttday){ui.ttDay=parseInt(el.dataset.ttday,10);renderTimetable();return;}
+  if(el.dataset.ttrm){
+    var tk=String(ui.ttDay),list=state.timetable[tk]||[],ci=-1;
+    for(var q=0;q<list.length;q++){if(list[q].id===el.dataset.ttrm){ci=q;break;}}
+    if(ci<0)return;
+    var cgone=list.splice(ci,1)[0],cday=ui.ttDay;
+    ttChanged(cday);
+    toast('Removed '+cgone.name,'Undo',function(){(state.timetable[String(cday)]=state.timetable[String(cday)]||[]).push(cgone);ttChanged(cday);});
+    return;
+  }
+  if(el.dataset.weather){
+    state.prefs.weather=el.dataset.weather;ui.seen.clear();touch();
+    regen();renderControls();renderOutfit();return;
+  }
+  if(el.dataset.plan){
+    state.prefs.plan=el.dataset.plan;ui.seen.clear();touch();regen();renderControls();renderOutfit();return;
+  }
+  if(el.dataset.lock){
+    var s=el.dataset.lock;ui.locks[s]=!ui.locks[s];if(!ui.locks[s])delete ui.locks[s];renderOutfit();return;
+  }
+  if(el.dataset.remove){
+    var id=el.dataset.remove,idx=-1;
+    for(var i=0;i<state.items.length;i++){if(state.items[i].id===id){idx=i;break;}}
+    if(idx<0)return;
+    var gone=state.items.splice(idx,1)[0];
+    itemsChanged();
+    toast('Removed '+gone.name,'Undo',function(){state.items.splice(Math.min(idx,state.items.length),0,gone);itemsChanged();});
+    return;
+  }
+  var a=el.dataset.action;
+  if(a==='ctl'){ui.ctlOpen=!ui.ctlOpen;renderControls();}
+  else if(a==='shuffle'){regen();renderOutfit();}
+  else if(a==='wear'){wear();}
+  else if(a==='unwear'){unwear();}
+  else if(a==='pickphoto'){$('f-photo').click();}
+  else if(a==='shareapp'){shareApp();}
+  else if(a==='shareoutfit'){shareOutfit();}
+  else if(a==='welcome-skip'){state.prefs.onboarded=true;touch();renderWelcome();}
+  else if(a==='clearall'){
+    var b1=state.items.slice(),b2=JSON.parse(JSON.stringify(state.timetable));
+    state.items=state.items.filter(function(i){return !i.sample;});
+    Object.keys(state.timetable).forEach(function(k){state.timetable[k]=state.timetable[k].filter(function(c){return !c.sample;});});
+    itemsChanged();ttChanged(new Date().getDay());
+    toast('Samples cleared','Undo',function(){state.items=b1;state.timetable=b2;itemsChanged();ttChanged(new Date().getDay());});
+  }
+  else if(a==='wx-refresh'){fetchWeather(true);}
+  else if(a==='wx-edit'){ui.wxEdit=true;ui.wxMsg='';renderWx();}
+  else if(a==='wx-geo'){useGeo();}
+  else if(a==='export'){exportData();}
+  else if(a==='import'){$('imp').click();}
+  else if(a==='install'){
+    var ev2=ui.installEvt;
+    if(ev2){ev2.prompt();ui.installEvt=null;renderInstall();}
+  }
+  else if(a==='clearsamplett'){
+    var tbefore=JSON.parse(JSON.stringify(state.timetable));
+    Object.keys(state.timetable).forEach(function(k){state.timetable[k]=state.timetable[k].filter(function(c){return !c.sample;});});
+    ttChanged(new Date().getDay());
+    toast('Sample timetable cleared','Undo',function(){state.timetable=tbefore;ttChanged(new Date().getDay());});
+  }
+  else if(a==='weekshuffle'){renderWeek(true);}
+  else if(a==='packreset'){state.prefs.packTicks={};touch();renderPack();}
+  else if(a==='washworn'){
+    var wornIds=curIds().filter(function(id){var it=byId(id);return it&&it.cat!=='shoes';});
+    wornIds.forEach(function(id){byId(id).dirty=true;});
+    itemsChanged();
+    toast(wornIds.length+(wornIds.length===1?' piece':' pieces')+' sent to the wash','Undo',function(){wornIds.forEach(function(id){var it=byId(id);if(it)it.dirty=false;});itemsChanged();});
+  }
+  else if(a==='allclean'){
+    state.items.forEach(function(i){i.dirty=false;});
+    itemsChanged();toast('Everything is marked clean');
+  }
+  else if(a==='clearsamples'){
+    var before=state.items.slice();
+    state.items=state.items.filter(function(i){return !i.sample;});
+    itemsChanged();
+    toast('Sample clothes cleared','Undo',function(){state.items=before;itemsChanged();});
+  }
+});
+
+/* ---------- add form ---------- */
+function buildSwatches(){
+  $('swgrid').innerHTML=COLORS.map(function(c){
+    return '<label class="sw" title="'+esc(c.name)+'"><input type="radio" name="color" value="'+c.id+'" class="vh" aria-label="'+esc(c.name)+'"><span class="c" style="--c:'+c.hex+'"></span></label>';
+  }).join('');
+}
+function syncCatFields(){
+  var shoes=$('f-cat').value==='shoes';
+  $('warm-field').hidden=shoes;
+  $('pat-field').hidden=shoes;
+  $('rain-field').hidden=!shoes;
+}
+$('f-cat').addEventListener('change',syncCatFields);
+$('wq').addEventListener('input',function(){ui.q=$('wq').value;renderList();});
+$('swgrid').addEventListener('change',function(ev){
+  var c=colorOf(ev.target.value);$('colorname').textContent='· '+c.name;$('f-err').textContent='';
+});
+$('addform').addEventListener('submit',function(ev){
+  ev.preventDefault();
+  var name=$('f-name').value.trim(),cat=$('f-cat').value,col=$('addform').elements.color.value;
+  if(!name){$('f-err').textContent='Give the piece a name, for example “Grey hoodie”.';$('f-name').focus();return;}
+  if(!col){$('f-err').textContent='Pick the closest colour.';return;}
+  var nid=uid();state.items.push({id:nid,name:name.slice(0,60),cat:cat,color:col,style:$('f-style').value,pattern:cat==='shoes'?'solid':$('f-pattern').value,warm:cat==='shoes'?2:parseInt($('f-warm').value,10),rain:cat==='shoes'?$('f-rain').checked:false});
+  if(ui.photoPending){setPhoto(nid,ui.photoPending);ui.photoPending=null;$('f-prev').style.background='';$('f-photonote').textContent='The colour is picked from the photo. You can change it.';}
+  $('f-err').textContent='';
+  $('f-name').value='';$('f-rain').checked=false;$('f-pattern').value='solid';
+  itemsChanged();
+  toast('Added '+name);
+  $('f-name').focus();
+});
+
+/* ---------- timetable form ---------- */
+function ttChanged(day){
+  touch();
+  if(day===new Date().getDay()){ui.seen.clear();regen();}
+  renderControls();renderOutfit();renderClasses();renderTimetable();
+}
+$('ttform').addEventListener('submit',function(ev){
+  ev.preventDefault();
+  var name=$('t-name').value.trim(),type=$('t-type').value,st=$('t-start').value,en=$('t-end').value;
+  if(!name){$('t-err').textContent='Give the class a name, for example “Data Structures”.';$('t-name').focus();return;}
+  if(!st||!en){$('t-err').textContent='Set both a start and an end time.';return;}
+  if(toMin(en)<=toMin(st)){$('t-err').textContent='The end time has to be after the start time.';return;}
+  var day=ui.ttDay,k=String(day),wasEmpty=classesFor(new Date().getDay()).length===0;
+  (state.timetable[k]=state.timetable[k]||[]).push({id:uid(),name:name.slice(0,50),type:type,start:st,end:en});
+  $('t-err').textContent='';$('t-name').value='';
+  var auto=(day===new Date().getDay()&&wasEmpty&&state.prefs.plan!=='auto');
+  if(auto)state.prefs.plan='auto';
+  ttChanged(day);
+  toast(auto?'Added '+name+'. Outfits now plan around your timetable.':'Added '+name);
+  $('t-name').focus();
+});
+
+/* ---------- boot ---------- */
+loadPhotos();Object.keys(PHOTOS).forEach(function(id){if(!byId(id))dropPhoto(id);});
+buildSwatches();syncCatFields();
+$('f-photo').addEventListener('change',function(){var f=$('f-photo').files&&$('f-photo').files[0];if(f)pickPhotoForForm(f);$('f-photo').value='';});
+$('pic').addEventListener('change',function(){var f=$('pic').files&&$('pic').files[0];if(f&&ui.photoFor)attachPhoto(ui.photoFor,f);$('pic').value='';});
+initCurrent();
+renderAll();
+document.addEventListener('submit',function(ev){
+  if(ev.target&&ev.target.id==='wxform'){ev.preventDefault();findCity($('wx-city').value);}
+});
+$('imp').addEventListener('change',function(){
+  var f=$('imp').files&&$('imp').files[0];
+  if(f)importData(f);
+  $('imp').value='';
+});
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();ui.installEvt=e;renderInstall();renderWelcome();});
+document.addEventListener('visibilitychange',checkDay);
+setInterval(checkDay,60000);
+renderInstall();
+if(state.prefs.loc)fetchWeather(false);
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
+  window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').then(function(reg){reg.addEventListener('updatefound',function(){var w=reg.installing;if(!w)return;w.addEventListener('statechange',function(){if(w.state==='installed'&&navigator.serviceWorker.controller)toast('New version ready','Reload',function(){location.reload();});});});}).catch(function(){});});
+}
+})();
+</script>
+
+</body>
+</html>
