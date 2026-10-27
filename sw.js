@@ -1,6 +1,6 @@
 /* Daily Fit service worker: lets the app open offline.
    Weather requests always go to the network; the app keeps its own copy of the last forecast. */
-const CACHE = 'dailyfit-v6';
+const CACHE = 'dailyfit-v7';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-180.png'];
 
 self.addEventListener('install', (e) => {
