@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#EDF0F6" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0D1226" media="(prefers-color-scheme: dark)">
+<meta name="referrer" content="no-referrer">
 <meta name="description" content="Picks a college outfit each day from your own wardrobe, based on the weather and your timetable.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png" type="image/png">
@@ -195,6 +196,8 @@ input[type="text"],input[type="time"],select{width:100%;min-height:46px;padding:
 .check{display:flex;align-items:center;gap:10px;min-height:44px}
 .check input{width:22px;height:22px;accent-color:var(--ink)}
 .err{color:var(--danger);font-size:14px;min-height:1.4em;margin:0}
+#notice:empty{display:none}
+.banner.warn{border:1px solid var(--danger)}
 .banner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;background:var(--surface-2);border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:14px}
 .group{margin-bottom:20px}
 .group h3{font:600 16px/1.2 var(--display);margin:0 0 4px;display:flex;gap:8px;align-items:baseline}
@@ -288,6 +291,7 @@ footer .btn{margin-top:10px}
   </header>
 
   <main>
+    <div id="notice" role="region" aria-label="Notices"></div>
     <section id="panel-today" aria-label="Today's outfit">
       <div id="welcome"></div>
       <div class="today-grid">
@@ -525,7 +529,8 @@ var LS_KEY='dailyfit.v1';
 function $(id){return document.getElementById(id);}
 function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function uid(){return 'i'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
-function pick(a){return a[Math.floor(Math.random()*a.length)];}
+var rand=Math.random; /* the only source of randomness in outfit choice; tests replace it */
+function pick(a){return a[Math.floor(rand()*a.length)];}
 function colorOf(id){for(var i=0;i<COLORS.length;i++){if(COLORS[i].id===id)return COLORS[i];}return COLORS[2];}
 function dkey(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function todayKey(){return dkey(new Date());}
@@ -581,34 +586,174 @@ function normTimetable(t){
   Object.keys(t).forEach(function(k){if(Array.isArray(t[k]))out[k]=t[k].filter(validClass);});
   return out;
 }
-function validItem(i){return i&&i.id&&i.name&&CATS.some(function(c){return c.id===i.cat;});}
-function normalize(r){
-  r=r||{};
-  return {
-    items:Array.isArray(r.items)?r.items.filter(validItem):[],
-    history:Array.isArray(r.history)?r.history.filter(function(h){return h&&typeof h.d==='string'&&Array.isArray(h.ids);}):[],
-    prefs:Object.assign({weather:'warm',plan:'regular',loc:null},r.prefs||{}),
-    timetable:normTimetable(r.timetable),
-    likes:(r.likes&&typeof r.likes==='object')?r.likes:{},
-    rated:(r.rated&&typeof r.rated==='object')?r.rated:{},
-    looks:Array.isArray(r.looks)?r.looks.filter(function(l){return l&&Array.isArray(l.ids)&&l.ids.length;}).slice(0,12):[]
-  };
+var STYLES=['casual','smart','ethnic','sporty'],PATTERNS=['solid','striped','printed'];
+var DATE_RE=/^\d{4}-\d{2}-\d{2}$/;
+var normDropped=0;
+function validDateKey(k){
+  if(typeof k!=='string'||!DATE_RE.test(k))return false;
+  var p=k.split('-').map(Number),d=new Date(Date.UTC(p[0],p[1]-1,p[2]));
+  return d.getUTCFullYear()===p[0]&&d.getUTCMonth()===p[1]-1&&d.getUTCDate()===p[2];
 }
-function loadLocal(){try{var s=localStorage.getItem(LS_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
+function plainObj(x){return !!x&&typeof x==='object'&&!Array.isArray(x);}
+/* Turns anything item-shaped into a complete, safe item, or null when it cannot be used. */
+function fixItem(i){
+  if(!plainObj(i))return null;
+  var id=(typeof i.id==='string'||typeof i.id==='number')?String(i.id):'';
+  var name=typeof i.name==='string'?i.name.trim().slice(0,60):'';
+  if(!id||!name||!CATS.some(function(c){return c.id===i.cat;}))return null;
+  var warm=parseInt(i.warm,10),out={
+    id:id,name:name,cat:i.cat,
+    color:COLORS.some(function(c){return c.id===i.color;})?i.color:'grey',
+    style:STYLES.indexOf(i.style)>-1?i.style:'casual',
+    pattern:PATTERNS.indexOf(i.pattern)>-1?i.pattern:'solid',
+    warm:(warm>=1&&warm<=3)?warm:2,
+    rain:!!i.rain
+  };
+  if(i.dirty===true)out.dirty=true;
+  if(i.sample===true)out.sample=true;
+  return out;
+}
+function validItem(i){return !!fixItem(i);}
+function normLoc(l){
+  if(!plainObj(l)||typeof l.lat!=='number'||typeof l.lon!=='number'||!isFinite(l.lat)||!isFinite(l.lon)||Math.abs(l.lat)>90||Math.abs(l.lon)>180)return null;
+  return {lat:Math.round(l.lat*100)/100,lon:Math.round(l.lon*100)/100,name:typeof l.name==='string'?l.name.slice(0,80):'Your location'};
+}
+function normPrefs(p){
+  var out=Object.assign({weather:'warm',plan:'regular',loc:null},plainObj(p)?p:{});
+  out.loc=normLoc(out.loc);
+  if(out.weather!=='live'&&!WEATHER.some(function(w){return w.id===out.weather;}))out.weather='warm';
+  if(out.plan!=='auto'&&!PLANS.some(function(x){return x.id===out.plan;}))out.plan='regular';
+  if(out.wxWeight!==undefined&&['style','balanced','strict'].indexOf(out.wxWeight)<0)delete out.wxWeight;
+  if(out.layerRule!==undefined&&['weekly','free'].indexOf(out.layerRule)<0)delete out.layerRule;
+  return out;
+}
+function normalize(r){
+  r=plainObj(r)?r:{};
+  var dropped=0,seen={},items=[],byDate={};
+  (Array.isArray(r.items)?r.items:[]).forEach(function(raw){
+    var it=fixItem(raw);
+    if(!it||seen[it.id]){dropped++;return;}
+    seen[it.id]=1;items.push(it);
+  });
+  (Array.isArray(r.history)?r.history:[]).forEach(function(h){
+    if(!plainObj(h)||!validDateKey(h.d)||!Array.isArray(h.ids)){dropped++;return;}
+    var ids=h.ids.filter(function(x){return typeof x==='string';});
+    if(!ids.length){dropped++;return;}
+    byDate[h.d]={d:h.d,ids:ids};
+  });
+  var history=Object.keys(byDate).sort().map(function(k){return byDate[k];});
+  var likes={};
+  if(plainObj(r.likes))Object.keys(r.likes).forEach(function(k){var v=r.likes[k];if(typeof v==='number'&&isFinite(v)&&v!==0)likes[k]=Math.max(-3,Math.min(3,v));});
+  var rated={};
+  if(plainObj(r.rated))Object.keys(r.rated).forEach(function(k){var v=r.rated[k];if(v===1||v===-1)rated[k]=v;});
+  var looks=[];
+  if(Array.isArray(r.looks))r.looks.forEach(function(l){
+    if(!plainObj(l)||!Array.isArray(l.ids))return;
+    var ids=l.ids.filter(function(x){return typeof x==='string';});
+    if(ids.length)looks.push({ids:ids});
+  });
+  normDropped=dropped;
+  return {items:items,history:history,prefs:normPrefs(r.prefs),timetable:normTimetable(r.timetable),likes:likes,rated:rated,looks:looks.slice(0,12)};
+}
+/* Checks a parsed backup before anything is changed. Returns {ok:false,error} or {ok:true,state,photos,warnings}. */
+function validateBackup(raw){
+  if(!plainObj(raw))return {ok:false,error:'That file isn’t a Daily Fit backup, so nothing was changed.'};
+  if(raw.v!==undefined&&(typeof raw.v!=='number'||raw.v>2))return {ok:false,error:'This backup is from a newer version of Daily Fit. Update the app, then try again.'};
+  var known=['items','history','timetable','prefs','likes','rated','looks'];
+  if(!known.some(function(k){return raw[k]!==undefined;}))return {ok:false,error:'That file has no Daily Fit data in it, so nothing was changed.'};
+  var bad=[];
+  ['items','history','looks'].forEach(function(k){if(raw[k]!==undefined&&!Array.isArray(raw[k]))bad.push(k);});
+  ['timetable','prefs','likes','rated','photos'].forEach(function(k){if(raw[k]!==undefined&&raw[k]!==null&&!plainObj(raw[k]))bad.push(k);});
+  if(bad.length)return {ok:false,error:'This backup looks damaged ('+bad.join(', ')+' has the wrong type), so nothing was changed.'};
+  if(Array.isArray(raw.items)&&raw.items.length>1000)return {ok:false,error:'This backup has too many items to be a normal wardrobe.'};
+  var n=normalize(raw),warnings=[];
+  if(Array.isArray(raw.items)&&raw.items.length&&!n.items.length)return {ok:false,error:'None of the '+raw.items.length+' items in that file could be read, so nothing was changed.'};
+  if(!n.items.length&&!n.history.length&&!Object.keys(n.timetable).some(function(k){return n.timetable[k].length;}))return {ok:false,error:'That backup is empty, so nothing was restored.'};
+  var skipped=(Array.isArray(raw.items)?raw.items.length-n.items.length:0);
+  if(skipped>0)warnings.push(skipped+(skipped===1?' item':' items')+' skipped');
+  var have={};n.items.forEach(function(i){have[i.id]=1;});
+  var cut=0;
+  n.history=n.history.map(function(h){var ids=h.ids.filter(function(id){if(have[id])return true;cut++;return false;});return {d:h.d,ids:ids};}).filter(function(h){return h.ids.length;});
+  n.looks=n.looks.map(function(l){return {ids:l.ids.filter(function(id){return have[id];})};}).filter(function(l){return l.ids.length;});
+  if(cut>0)warnings.push(cut+' history '+(cut===1?'entry':'entries')+' for missing pieces left out');
+  var photos={},pskip=0;
+  if(plainObj(raw.photos))Object.keys(raw.photos).forEach(function(id){
+    var v=raw.photos[id];
+    if(have[id]&&typeof v==='string'&&v.length<=600000&&PHOTO_OK.test(v))photos[id]=v;else pskip++;
+  });
+  if(pskip>0)warnings.push(pskip+(pskip===1?' photo':' photos')+' skipped');
+  return {ok:true,state:n,photos:photos,warnings:warnings};
+}
+var RECOVERY_PREFIX='dailyfit.v1.recovery.',PREV_KEY='dailyfit.v1.prev';
+var loadInfo={status:'new',raw:null,recoveryKey:null};
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}}
+function lsDel(k){try{localStorage.removeItem(k);}catch(e){}}
+/* Reads the saved wardrobe. Never throws and never discards unreadable data:
+   if the saved text cannot be parsed, a raw copy is kept under a recovery key. */
+function loadLocal(){
+  var raw=lsGet(LS_KEY);
+  if(raw==null||raw==='')return null;
+  loadInfo.raw=raw;
+  var o=null;
+  try{o=JSON.parse(raw);}catch(e){o=null;}
+  if(!o||typeof o!=='object'||Array.isArray(o)){
+    loadInfo.status='unreadable';
+    var k=RECOVERY_PREFIX+Date.now();
+    if(lsSet(k,raw))loadInfo.recoveryKey=k;
+    return null;
+  }
+  loadInfo.status='ok';
+  return o;
+}
 var saved=loadLocal();
-var state=saved?normalize(saved):{items:sampleItems(),history:[],prefs:{weather:'warm',plan:'auto'},timetable:sampleTimetable(),likes:{},rated:{}};
+var state;
+if(saved){
+  state=normalize(saved);
+  /* older or partly invalid data: keep one untouched copy of it before the first save rewrites it */
+  if(saved.v!==2||normDropped>0)lsSet(PREV_KEY,loadInfo.raw);
+}else{
+  state={items:sampleItems(),history:[],prefs:{weather:'warm',plan:'auto'},timetable:sampleTimetable(),likes:{},rated:{},looks:[]};
+}
 var ui={tab:'today',current:null,locks:{},seen:new Set(),ctlOpen:false,edited:false,sync:'local',removed:null,ttDay:new Date().getDay(),weather:loadWx(),wxStatus:'idle',wxMsg:'',wxEdit:false,wxUsed:null,dayKey:todayKey(),installEvt:null};
 
 /* ---------- persistence ---------- */
 var docRef=null,saveTimer=null,saving=false,dirty=false;
-function serialize(){return {v:2,items:state.items,history:state.history.slice(-60),prefs:state.prefs,timetable:state.timetable,likes:state.likes,rated:pruneRated(),looks:looks().slice(0,12),updated:Date.now()};}
+function serialize(st){st=st||state;return {v:2,items:st.items,history:st.history.slice(-60),prefs:st.prefs,timetable:st.timetable,likes:st.likes,rated:pruneRated(st),looks:(st.looks||[]).slice(0,12),updated:Date.now()};}
 function looks(){return state.looks||(state.looks=[]);}
-function pruneRated(){
-  var k=Object.keys(state.rated);
-  while(k.length>300){delete state.rated[k.shift()];}
-  return state.rated;
+function pruneRated(st){
+  st=st||state;
+  var k=Object.keys(st.rated);
+  while(k.length>300){delete st.rated[k.shift()];}
+  return st.rated;
 }
-function saveLocal(){try{localStorage.setItem(LS_KEY,JSON.stringify(serialize()));}catch(e){}}
+var lastBody='';
+/* Returns true when the wardrobe is safely stored. Skips the write when nothing changed. */
+function saveLocal(){
+  var o,body,text;
+  try{o=serialize();var u=o.updated;o.updated=0;body=JSON.stringify(o);o.updated=u;text=JSON.stringify(o);}catch(e){return false;}
+  if(body===lastBody&&!ui.saveFailed)return true;
+  var ok=lsSet(LS_KEY,text);
+  if(ok){lastBody=body;if(ui.saveFailed){ui.saveFailed=false;renderNotice();}}
+  else if(!ui.saveFailed){ui.saveFailed=true;renderNotice();}
+  return ok;
+}
+function renderNotice(){
+  var el=$('notice');if(!el)return;
+  var h='';
+  if(ui.saveFailed)h+='<div class="banner warn" role="alert"><span>Couldn’t save to this phone. Storage may be full or blocked, so recent changes could be lost. Save a backup now.</span><button type="button" class="btn small" data-action="export">Save backup</button></div>';
+  if(loadInfo.status==='unreadable'&&!ui.noticeDismissed)h+='<div class="banner warn" role="alert"><span>Your saved data couldn’t be read, so sample clothes are showing. A copy of the old data was kept on this phone.</span><span class="sact"><button type="button" class="btn small" data-action="dlrecovery">Download copy</button><button type="button" class="btn small" data-action="dismissnotice">Dismiss</button></span></div>';
+  el.innerHTML=h;
+}
+function downloadText(name,text,type){
+  try{
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},3000);
+    return true;
+  }catch(e){return false;}
+}
 function touch(){
   ui.edited=true;saveLocal();dirty=true;renderWelcome();
   clearTimeout(saveTimer);saveTimer=setTimeout(flush,500);
@@ -720,7 +865,7 @@ function renderWx(){
     else if(ui.wxStatus==='stale')h+='<p class="wxmsg">Offline, showing the last forecast.</p>';
     h+='<div class="wxbtns"><button type="button" class="btn small" data-action="wx-refresh">Refresh</button><button type="button" class="btn small" data-action="wx-edit">Change place</button></div>';
   }else{
-    h+='<p class="muted">Get today’s temperature and rain chance automatically, timed to your classes.</p>';
+    h+='<p class="muted">Get today’s temperature and rain chance automatically, timed to your classes. Only a city name or your approximate location (rounded to about 1 km) is sent to Open-Meteo for this. Your clothes never are.</p>';
     h+='<div class="wxbtns"><button type="button" class="btn small primary" data-action="wx-geo">Use my location</button></div>';
     h+='<form class="wxform" id="wxform" novalidate style="margin-top:10px"><label class="mono" for="wx-city">Or search for a city</label><input type="text" id="wx-city" autocomplete="off" placeholder="e.g. Pune"><button type="submit" class="btn small">Find</button></form>';
     if(ui.wxStatus==='loading')h+='<p class="wxmsg">Looking…</p>';
@@ -748,19 +893,48 @@ function exportData(){
     toast('Backup saved to your downloads');
   }catch(e){toast('Couldn’t create the backup');}
 }
+/* Replaces the whole wardrobe with an already-validated backup, or changes nothing. */
+function applyImport(res){
+  var prevState=state,prevRaw=lsGet(LS_KEY),prevPhotos={},written=[],i,failed=false;
+  if(prevRaw!=null)lsSet(PREV_KEY,prevRaw);
+  if(!lsSet(LS_KEY,JSON.stringify(serialize(res.state))))return {ok:false,error:'Couldn’t save the backup on this phone (storage may be full), so nothing was changed.'};
+  var ids=Object.keys(res.photos);
+  for(i=0;i<ids.length;i++){
+    prevPhotos[ids[i]]=PHOTOS[ids[i]]||null;
+    if(!setPhotoQuiet(ids[i],res.photos[ids[i]])){failed=true;break;}
+    written.push(ids[i]);
+  }
+  function restorePhotos(){
+    written.forEach(function(id){if(prevPhotos[id])setPhotoQuiet(id,prevPhotos[id]);else dropPhoto(id);});
+  }
+  if(failed){
+    restorePhotos();
+    if(prevRaw!=null)lsSet(LS_KEY,prevRaw);else lsDel(LS_KEY);
+    return {ok:false,error:'There isn’t enough space on this phone for the photos in this backup, so nothing was changed.'};
+  }
+  state=res.state;lastBody='';ui.edited=true;
+  ui.current=null;ui.locks={};ui.seen.clear();ui.plan=null;
+  initCurrent();renderAll();
+  if(state.prefs.loc)fetchWeather(true);
+  return {ok:true,undo:function(){
+    state=prevState;restorePhotos();lastBody='';
+    if(prevRaw!=null)lsSet(LS_KEY,prevRaw);
+    ui.current=null;ui.locks={};ui.seen.clear();ui.plan=null;
+    saveLocal();initCurrent();renderAll();
+  }};
+}
 function importData(file){
+  if(file.size>12*1024*1024){toast('That file is too large to be a Daily Fit backup');return;}
   var fr=new FileReader();
+  fr.onerror=function(){toast('Couldn’t read that file, so nothing was changed');};
   fr.onload=function(){
-    try{
-      var raw=JSON.parse(fr.result),n=normalize(raw);
-      if(raw&&raw.photos&&typeof raw.photos==='object'){Object.keys(raw.photos).forEach(function(id){if(typeof raw.photos[id]==='string')setPhoto(id,raw.photos[id]);});}
-      if(!n.items.length&&!n.history.length&&!Object.keys(n.timetable).length)throw new Error('empty');
-      var prev=state;
-      state=n;ui.current=null;ui.locks={};ui.seen.clear();
-      touch();initCurrent();renderAll();
-      if(state.prefs.loc)fetchWeather(true);
-      toast('Backup restored','Undo',function(){state=prev;ui.current=null;ui.locks={};ui.seen.clear();touch();initCurrent();renderAll();});
-    }catch(e){toast('That file isn’t a Daily Fit backup');}
+    var raw;
+    try{raw=JSON.parse(fr.result);}catch(e){toast('That file isn’t valid JSON, so nothing was changed');return;}
+    var res=validateBackup(raw);
+    if(!res.ok){toast(res.error);return;}
+    var out=applyImport(res);
+    if(!out.ok){toast(out.error);return;}
+    toast('Backup restored'+(res.warnings.length?' ('+res.warnings.join(', ')+')':''),'Undo',out.undo);
   };
   fr.readAsText(file);
 }
@@ -786,7 +960,7 @@ function renderWelcome(){
   ];
   var rest=steps.filter(function(x){return !x.done;});
   if(!rest.length){el.innerHTML='';return;}
-  var h='<div class="panel welcome"><h2>Make it yours</h2><p class="muted">'+(steps.length-rest.length)+' of '+steps.length+' done. Everything stays on this phone.</p><ol class="wsteps">';
+  var h='<div class="panel welcome"><h2>Make it yours</h2><p class="muted">'+(steps.length-rest.length)+' of '+steps.length+' done. Your wardrobe stays on this phone.</p><ol class="wsteps">';
   steps.forEach(function(x){
     var open=(x===rest[0]);
     h+='<li class="wstep'+(x.done?' done':'')+(open?' open':'')+'"><span class="tick">'+ICON_TICK+'</span><div><div class="nm">'+esc(x.t)+'</div>'+(open?'<div class="meta">'+esc(x.m)+'</div>':'')+'</div>'+((open&&x.b)?'<div class="wb">'+x.b+'</div>':'')+'</li>';
@@ -873,10 +1047,14 @@ function loadPhotos(){
   }catch(e){}
 }
 function getPhoto(id){return PHOTOS[id]||null;}
+function setPhotoQuiet(id,data){
+  if(typeof data!=='string'||!PHOTO_OK.test(data))return false;
+  if(!lsSet(PHOTO_PREFIX+id,data))return false;
+  PHOTOS[id]=data;return true;
+}
 function setPhoto(id,data){
-  if(!PHOTO_OK.test(data))return false;
-  try{localStorage.setItem(PHOTO_PREFIX+id,data);PHOTOS[id]=data;return true;}
-  catch(e){toast('Phone storage is full. Remove a photo or save a backup first.');return false;}
+  if(setPhotoQuiet(id,data))return true;
+  toast('Phone storage is full. Remove a photo or save a backup first.');return false;
 }
 function dropPhoto(id){delete PHOTOS[id];try{localStorage.removeItem(PHOTO_PREFIX+id);}catch(e){}}
 function photoCss(id){var p=PHOTOS[id];return p?"background:url('"+p+"') center/cover no-repeat;":'';}
@@ -950,6 +1128,18 @@ function wearCounts(){var m={};state.history.forEach(function(h){h.ids.forEach(f
 function byId(id){for(var i=0;i<state.items.length;i++){if(state.items[i].id===id)return state.items[i];}return null;}
 function ready(){var p=pools();return p.shoes.length>0&&((p.top.length>0&&p.bottom.length>0)||p.one.length>0);}
 function todayEntry(){var t=todayKey();for(var i=0;i<state.history.length;i++){if(state.history[i].d===t)return state.history[i];}return null;}
+function outfitKey(ids){return ids.slice().sort().join(',');}
+function idsOfCombo(c){return SLOTS.map(function(k){return c[k]?c[k].id:null;}).filter(Boolean);}
+/* Whole outfits worn (or planned) in the 7 days before ref, so an identical outfit is not repeated. */
+function recentOutfitKeys(ref,extra){
+  var t=ref||todayKey(),m={};
+  state.history.concat(extra||[]).forEach(function(h){
+    if(h.d>=t)return;
+    var n=dayDiff(h.d,t);
+    if(n>=1&&n<=7)m[outfitKey(h.ids)]=1;
+  });
+  return m;
+}
 function lastWornMap(ref,extra){
   var t=ref||todayKey(),m={};
   state.history.concat(extra||[]).forEach(function(h){
@@ -1101,11 +1291,23 @@ function makeCtx(day,ref,extra){
     W:currentWeather(),
     plan:buildPlan(day,!!ref&&ref!==todayKey()),
     day:dayInfo(classesFor(day)),
-    last:lastWornMap(ref,extra)
+    last:lastWornMap(ref,extra),
+    recent:recentOutfitKeys(ref,extra)
   };
 }
 function wxWeight(){return ({style:0.25,balanced:0.6,strict:1})[state.prefs.wxWeight||'style']||0.25;}
+/* Fills in anything missing so a half-described piece can never turn a score into NaN. */
+function complete(it){
+  if(!it)return it;
+  if(it.warm>=1&&it.warm<=3&&STYLES.indexOf(it.style)>-1&&PATTERNS.indexOf(it.pattern)>-1)return it;
+  var c=Object.assign({},it);
+  c.warm=(it.warm>=1&&it.warm<=3)?it.warm:2;
+  c.style=STYLES.indexOf(it.style)>-1?it.style:'casual';
+  c.pattern=PATTERNS.indexOf(it.pattern)>-1?it.pattern:'solid';
+  return c;
+}
 function scoreCombo(c,ctx){
+  c={one:complete(c.one),top:complete(c.top),bottom:complete(c.bottom),layer:complete(c.layer),shoes:complete(c.shoes)};
   var W=ctx.W,plan=ctx.plan,D=ctx.day,last=ctx.last,s=0,tags=[];
   var upper=c.one||c.top,bottom=c.bottom,layer=c.layer,shoes=c.shoes;
   var body=[upper,bottom,layer].filter(Boolean);
@@ -1204,7 +1406,7 @@ function scoreCombo(c,ctx){
   s+=(state.rated[rk]||0)*3;
 
   tags=tags.slice(0,3).concat(csTags.slice(0,2));
-  return {s:s+Math.random()*1.2,tags:tags,harm:cs.score-(layer?4.5:0)+(c.one?2:0)};
+  return {s:s,tags:tags,harm:cs.score-(layer?4.5:0)+(c.one?2:0)};
 }
 
 /* ---------- layers: at most once a week ---------- */
@@ -1221,14 +1423,14 @@ function layerWait(ref,extra){
 
 /* ---------- generation ---------- */
 function pickTop(arr){
-  var top=arr.slice(0,10),b=top[0].s,sum=0,ws=top.map(function(x){var w=Math.exp((x.s-b)/1.5);sum+=w;return w;}),r=Math.random()*sum,i;
+  var top=arr.slice(0,10),b=top[0].s,sum=0,ws=top.map(function(x){var w=Math.exp((x.s-b)/1.5);sum+=w;return w;}),r=rand()*sum,i;
   for(i=0;i<top.length;i++){r-=ws[i];if(r<=0)return top[i];}
   return top[0];
 }
 function generate(opts){
   opts=opts||{};
   var p=pools(),ctx=opts.ctx||makeCtx(),W=ctx.W,cur=opts.free?null:ui.current,fixed={};
-  if(cur){SLOTS.forEach(function(s){if(ui.locks[s]&&cur[s]){var it=byId(cur[s]);if(it)fixed[s]=it;}});}
+  if(cur){SLOTS.forEach(function(s){if(ui.locks[s]&&cur[s]){var it=byId(cur[s]);if(it&&!it.dirty)fixed[s]=it;}});}
   var canTwo=p.top.length>0&&p.bottom.length>0,canOne=p.one.length>0;
   if(!p.shoes.length||(!canTwo&&!canOne))return null;
   var found=new Map();
@@ -1241,7 +1443,7 @@ function generate(opts){
     else if(ui.onlyOne&&canOne)useOne=true;
     else if(!canTwo)useOne=true;
     else if(!canOne)useOne=false;
-    else useOne=Math.random()<0.22;
+    else useOne=rand()<0.22;
     if(!useOne&&!canTwo)continue;
     var c={};
     if(useOne)c.one=fixed.one||pick(p.one);
@@ -1249,7 +1451,7 @@ function generate(opts){
     c.shoes=fixed.shoes||pick(p.shoes);
     if(fixed.layer)c.layer=fixed.layer;
     else if(ui.forceLayer&&p.layer.length)c.layer=pick(p.layer);
-    else if(layerOK&&p.layer.length&&Math.random()<layerProb)c.layer=pick(p.layer);
+    else if(layerOK&&p.layer.length&&rand()<layerProb)c.layer=pick(p.layer);
     var key=[c.one,c.top,c.bottom,c.layer,c.shoes].map(function(x){return x?x.id:'-';}).join('|');
     if(found.has(key))continue;
     var r=scoreCombo(c,ctx);
@@ -1257,10 +1459,15 @@ function generate(opts){
   }
   var list=Array.from(found.values()).sort(function(a,b){return b.s-a.s;});
   if(!list.length)return null;
-  if(opts.free)return pickTop(list);
+  /* never repeat a whole outfit from the last week when any alternative exists */
+  var recent=ctx.recent||{},repeat=false;
+  var novel=list.filter(function(x){return !recent[outfitKey(idsOfCombo(x.c))];});
+  if(novel.length)list=novel;else repeat=true;
+  if(opts.free){var fr=pickTop(list);fr.repeat=repeat;return fr;}
   var fresh=list.filter(function(x){return !ui.seen.has(x.key);});
   if(!fresh.length){ui.seen.clear();fresh=list;}
   var ch=pickTop(fresh);
+  ch.repeat=repeat;
   ui.seen.add(ch.key);
   return ch;
 }
@@ -1271,7 +1478,7 @@ function regen(){
   if(!r)return;
   var cur={};
   SLOTS.forEach(function(k){if(r.c[k])cur[k]=r.c[k].id;});
-  cur.tags=r.tags;cur.harm=r.harm;
+  cur.tags=r.tags;cur.harm=r.harm;cur.repeat=!!r.repeat;
   ui.current=cur;
   Object.keys(ui.locks).forEach(function(k){if(!cur[k])delete ui.locks[k];});
 }
@@ -1326,7 +1533,7 @@ function renderDate(){
 }
 function renderCount(){$('count').textContent=state.items.length?String(state.items.length):'';}
 function renderSync(){
-  $('sync').textContent='Saved on this device only';
+  $('sync').textContent='Wardrobe saved on this device only';
 }
 function renderControls(){
   var keep=$('wx-city')?$('wx-city').value:'';
@@ -1384,6 +1591,7 @@ function renderOutfit(){
   if(cur.shoes)h+=slotRow('shoes','Shoes',byId(cur.shoes));
   h+='</ul>';
   if(cur.harm!=null){var hl2=harmLabel(cur.harm);h+='<div class="harm"><span class="mono">Colour match</span><span class="pill'+(hl2==='Strong'?' fx':'')+'">'+hl2+'</span></div>';}
+  if(cur.repeat)h+='<p class="logged">With the pieces available, this repeats a recent look. A few more clothes will give you more variety.</p>';
   if(cur.tags&&cur.tags.length){h+='<ul class="why">'+cur.tags.map(function(t){return '<li>'+esc(t)+'</li>';}).join('')+'</ul>';}
   var e=todayEntry(),same=!!e&&sameIds(e.ids,curIds());
   h+='<div class="actions"><button type="button" class="btn" data-action="shuffle">'+ICON_SHUFFLE+'Shuffle</button>';
@@ -1607,7 +1815,7 @@ function planWeek(n){
     if(!r){out.push({d:key,dow:dow,none:true});continue;}
     var ids=[];SLOTS.forEach(function(k){if(r.c[k])ids.push(r.c[k].id);});
     extra.push({d:key,ids:ids});
-    out.push({d:key,dow:dow,ids:ids,tags:r.tags,harm:r.harm});
+    out.push({d:key,dow:dow,ids:ids,tags:r.tags,harm:r.harm,repeat:!!r.repeat});
   }
   return out;
 }
@@ -1635,7 +1843,7 @@ function renderWeek(force){
     var info=cl.length?(cl.length+(cl.length===1?' class':' classes')+' · '+fmtTime(D.first)+' to '+fmtTime(D.last)+' · '+Object.keys(kinds).join(', ')):'Free day';
     if(p.none){h+='<div class="rrow"><span class="mono">'+esc(shortDate(p.d))+'</span><div><div class="t">Add a top, bottom and shoes to plan this day.</div><div class="t">'+esc(info)+'</div></div></div>';return;}
     var its=p.ids.map(byId).filter(Boolean);
-    h+='<div class="rrow"><span class="mono">'+esc(shortDate(p.d))+'</span><div><div class="dots">'+its.map(function(i){return '<i style="--c:'+colorOf(i.color).hex+'"></i>';}).join('')+'</div><div class="nm" style="font-weight:600">'+esc(its.map(function(i){return i.name;}).join(', '))+'</div><div class="t">'+esc(info)+'</div><div class="t">Colour match '+esc(harmLabel(p.harm))+(p.tags&&p.tags[0]?' · '+esc(p.tags[0]):'')+'</div></div></div>';
+    h+='<div class="rrow"><span class="mono">'+esc(shortDate(p.d))+'</span><div><div class="dots">'+its.map(function(i){return '<i style="--c:'+colorOf(i.color).hex+'"></i>';}).join('')+'</div><div class="nm" style="font-weight:600">'+esc(its.map(function(i){return i.name;}).join(', '))+'</div><div class="t">'+esc(info)+'</div><div class="t">Colour match '+esc(harmLabel(p.harm))+(p.tags&&p.tags[0]?' · '+esc(p.tags[0]):'')+'</div>'+(p.repeat?'<div class="t">Repeats a recent look. Your wardrobe is too small for a fresh one here.</div>':'')+'</div></div>';
   });
   $('weeklist').innerHTML=h||'<p class="muted">Add a few pieces in Wardrobe to plan the week.</p>';
   renderPack();renderLookback();renderLooks();
@@ -1870,7 +2078,7 @@ document.addEventListener('click',function(ev){
     var ids0=curIds(),ix0=lookIndex(ids0);
     if(!ids0.length)return;
     if(ix0>-1){looks().splice(ix0,1);toast('Removed from saved looks');}
-    else{looks().unshift({ids:ids0.slice()});state.looks=looks().slice(0,12);toast('Saved. Find it under Plan.');}
+    else{looks().unshift({ids:ids0.slice()});state.looks=looks().slice(0,12);toast(ui.saveFailed?'Done, but couldn’t save to this phone':'Saved. Find it under Plan.');}
     touch();renderOutfit();
   }
   else if(a==='canceledit'){endEdit();}
@@ -1891,6 +2099,8 @@ document.addEventListener('click',function(ev){
   else if(a==='wx-edit'){ui.wxEdit=true;ui.wxMsg='';renderWx();}
   else if(a==='wx-geo'){useGeo();}
   else if(a==='export'){exportData();}
+  else if(a==='dlrecovery'){if(loadInfo.raw)downloadText('daily-fit-unreadable-data.txt',loadInfo.raw);}
+  else if(a==='dismissnotice'){ui.noticeDismissed=true;renderNotice();}
   else if(a==='import'){$('imp').click();}
   else if(a==='install'){
     var ev2=ui.installEvt;
@@ -1962,7 +2172,7 @@ $('addform').addEventListener('submit',function(ev){
   if(ui.editId){
     var ed=byId(ui.editId);
     if(ed){ed.name=name.slice(0,60);ed.cat=cat;ed.color=col;ed.style=$('f-style').value;ed.pattern=cat==='shoes'?'solid':$('f-pattern').value;ed.warm=cat==='shoes'?2:parseInt($('f-warm').value,10);ed.rain=cat==='shoes'?$('f-rain').checked:false;delete ed.sample;}
-    endEdit();$('f-err').textContent='';itemsChanged();toast('Saved changes');return;
+    endEdit();$('f-err').textContent='';itemsChanged();toast(ui.saveFailed?'Done, but couldn’t save to this phone':'Saved changes');return;
   }
   var nid=uid();state.items.push({id:nid,name:name.slice(0,60),cat:cat,color:col,style:$('f-style').value,pattern:cat==='shoes'?'solid':$('f-pattern').value,warm:cat==='shoes'?2:parseInt($('f-warm').value,10),rain:cat==='shoes'?$('f-rain').checked:false});
   if(ui.photoPending){setPhoto(nid,ui.photoPending);ui.photoPending=null;$('f-prev').style.background='';$('f-photonote').textContent='The colour is picked from the photo. You can change it.';}
@@ -2013,11 +2223,22 @@ $('imp').addEventListener('change',function(){
 window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();ui.installEvt=e;renderInstall();renderWelcome();});
 document.addEventListener('visibilitychange',checkDay);
 setInterval(checkDay,60000);
-renderInstall();
+renderInstall();renderNotice();
+if(typeof window!=='undefined'&&window.__DAILYFIT_TEST__){
+  window.__DAILYFIT_TEST__.api={
+    get state(){return state;},set state(v){state=v;},get ui(){return ui;},get PHOTOS(){return PHOTOS;},
+    COLORS:COLORS,WEATHER:WEATHER,CAL:CAL,loadInfo:loadInfo,
+    normalize:normalize,validateBackup:validateBackup,applyImport:applyImport,importData:importData,
+    scoreCombo:scoreCombo,generate:generate,pools:pools,planWeek:planWeek,makeCtx:makeCtx,pickTop:pickTop,
+    colorEval:colorEval,pairScore:pairScore,layerWait:layerWait,outfitKey:outfitKey,recentOutfitKeys:recentOutfitKeys,
+    saveLocal:saveLocal,serialize:serialize,sampleItems:sampleItems,fixItem:fixItem,
+    setRandom:function(f){rand=f||Math.random;},setLastBody:function(v){lastBody=v;}
+  };
+}
 if(state.prefs.loc)fetchWeather(false);
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
-  window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').then(function(reg){reg.addEventListener('updatefound',function(){var w=reg.installing;if(!w)return;w.addEventListener('statechange',function(){if(w.state==='installed'&&navigator.serviceWorker.controller)toast('New version ready','Reload',function(){location.reload();});});});}).catch(function(){});});
+  window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js',{scope:'./'}).then(function(reg){reg.addEventListener('updatefound',function(){var w=reg.installing;if(!w)return;w.addEventListener('statechange',function(){if(w.state==='installed'&&navigator.serviceWorker.controller)toast('New version ready','Reload',function(){location.reload();});});});}).catch(function(){});});
 }
 })();
 </script>
