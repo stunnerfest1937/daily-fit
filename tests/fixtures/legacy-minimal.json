@@ -1,0 +1,12 @@
+{
+  "items": [
+    { "id": "a1", "name": "Navy polo", "cat": "top", "color": "navy", "style": "casual", "warm": 1 },
+    { "id": "a2", "name": "Blue jeans", "cat": "bottom", "color": "denim", "style": "casual", "warm": 2 },
+    { "id": "a3", "name": "White sneakers", "cat": "shoes", "color": "white", "style": "casual", "warm": 2, "rain": false },
+    { "id": "a4", "name": "Grey hoodie", "cat": "layer", "color": "grey", "style": "casual", "warm": 3, "dirty": true }
+  ],
+  "history": [
+    { "d": "2025-01-10", "ids": ["a1", "a2", "a3"] }
+  ],
+  "prefs": { "weather": "warm", "plan": "regular" }
+}
