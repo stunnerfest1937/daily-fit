@@ -4,7 +4,7 @@
      network and are never stored here, so no third-party response ends up in this cache.
    - Works under a sub-path such as /daily-fit/ because every URL is relative to this file.
    Bump VERSION whenever any cached file changes. */
-const VERSION = '9';
+const VERSION = '10';
 const CACHE_PREFIX = 'dailyfit-';
 const CACHE = CACHE_PREFIX + 'v' + VERSION;
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];

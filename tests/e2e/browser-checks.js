@@ -48,12 +48,12 @@ const check = (name, ok, detail) => { results.push({ name, ok: !!ok }); console.
   const swFile = process.env.SW_FILE;
   if (swFile) {
     const nodefs = require('fs'); const orig = nodefs.readFileSync(swFile, 'utf8');
-    nodefs.writeFileSync(swFile, orig.replace("const VERSION = '9'", "const VERSION = '99'"));
+    nodefs.writeFileSync(swFile, orig.replace("const VERSION = '10'", "const VERSION = '99'"));
     await page.evaluate(async () => { const reg = await navigator.serviceWorker.ready; await reg.update(); });
-    for (let i = 0; i < 40; i++) { const k = await page.evaluate(() => caches.keys()); if (!k.includes('dailyfit-v9') && k.includes('dailyfit-v99')) break; await page.waitForTimeout(250); }
+    for (let i = 0; i < 40; i++) { const k = await page.evaluate(() => caches.keys()); if (!k.includes('dailyfit-v10') && k.includes('dailyfit-v99')) break; await page.waitForTimeout(250); }
     nodefs.writeFileSync(swFile, orig);
     const after = await page.evaluate(async () => caches.keys());
-    check('update removes old dailyfit caches', !after.includes('dailyfit-v0-old') && !after.includes('dailyfit-v9') && after.includes('dailyfit-v99'), after.join(','));
+    check('update removes old dailyfit caches', !after.includes('dailyfit-v0-old') && !after.includes('dailyfit-v10') && after.includes('dailyfit-v99'), after.join(','));
     check('update leaves unrelated caches alone', after.includes('someone-elses-cache'), after.join(','));
   } else console.log('SKIP cache-cleanup checks (set SW_FILE to a served copy of sw.js)');
 

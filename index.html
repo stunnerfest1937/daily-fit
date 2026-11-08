@@ -1136,7 +1136,7 @@ function recentOutfitKeys(ref,extra){
   state.history.concat(extra||[]).forEach(function(h){
     if(h.d>=t)return;
     var n=dayDiff(h.d,t);
-    if(n>=1&&n<=7)m[outfitKey(h.ids)]=1;
+    if(n>=1&&n<=TUNING.noRepeatDays)m[outfitKey(h.ids)]=1;
   });
   return m;
 }
@@ -1422,28 +1422,30 @@ function layerWait(ref,extra){
 }
 
 /* ---------- generation ---------- */
+/* Selection settings in one place. Scoring weights live inside scoreCombo and the PAIR_FIX table. */
+var TUNING={samples:400,onePieceChance:0.22,pickFromTop:10,pickTemperature:1.5,noRepeatDays:7};
 function pickTop(arr){
-  var top=arr.slice(0,10),b=top[0].s,sum=0,ws=top.map(function(x){var w=Math.exp((x.s-b)/1.5);sum+=w;return w;}),r=rand()*sum,i;
+  var top=arr.slice(0,TUNING.pickFromTop),b=top[0].s,sum=0,ws=top.map(function(x){var w=Math.exp((x.s-b)/TUNING.pickTemperature);sum+=w;return w;}),r=rand()*sum,i;
   for(i=0;i<top.length;i++){r-=ws[i];if(r<=0)return top[i];}
   return top[0];
 }
-function generate(opts){
-  opts=opts||{};
-  var p=pools(),ctx=opts.ctx||makeCtx(),W=ctx.W,cur=opts.free?null:ui.current,fixed={};
+/* Step 1: build candidate outfits and score them. Returns them best first, or null if none can be built. */
+function rankCandidates(opts,ctx){
+  var p=pools(),W=ctx.W,cur=opts.free?null:ui.current,fixed={};
   if(cur){SLOTS.forEach(function(s){if(ui.locks[s]&&cur[s]){var it=byId(cur[s]);if(it&&!it.dirty)fixed[s]=it;}});}
   var canTwo=p.top.length>0&&p.bottom.length>0,canOne=p.one.length>0;
   if(!p.shoes.length||(!canTwo&&!canOne))return null;
   var found=new Map();
   var layerProb=(ctx.day&&ctx.day.late&&W.id!=='hot')?Math.max(W.layer,0.75):W.layer;
   var layerOK=(opts.layerOK!==undefined?opts.layerOK:layerWait()===0)&&!ui.freezeLayer;
-  for(var n=0;n<400;n++){
+  for(var n=0;n<TUNING.samples;n++){
     var useOne;
     if(fixed.one)useOne=true;
     else if(fixed.top||fixed.bottom)useOne=false;
     else if(ui.onlyOne&&canOne)useOne=true;
     else if(!canTwo)useOne=true;
     else if(!canOne)useOne=false;
-    else useOne=rand()<0.22;
+    else useOne=rand()<TUNING.onePieceChance;
     if(!useOne&&!canTwo)continue;
     var c={};
     if(useOne)c.one=fixed.one||pick(p.one);
@@ -1458,7 +1460,10 @@ function generate(opts){
     found.set(key,{c:c,key:key,s:r.s,tags:r.tags,harm:r.harm});
   }
   var list=Array.from(found.values()).sort(function(a,b){return b.s-a.s;});
-  if(!list.length)return null;
+  return list.length?list:null;
+}
+/* Step 2: apply the repeat rules, then pick one of the best at random. This is the only random choice. */
+function chooseOutfit(list,ctx,opts){
   /* never repeat a whole outfit from the last week when any alternative exists */
   var recent=ctx.recent||{},repeat=false;
   var novel=list.filter(function(x){return !recent[outfitKey(idsOfCombo(x.c))];});
@@ -1470,6 +1475,11 @@ function generate(opts){
   ch.repeat=repeat;
   ui.seen.add(ch.key);
   return ch;
+}
+function generate(opts){
+  opts=opts||{};
+  var ctx=opts.ctx||makeCtx(),list=rankCandidates(opts,ctx);
+  return list?chooseOutfit(list,ctx,opts):null;
 }
 function regen(){
   ui.wxUsed=effectiveWeatherId();
@@ -2229,7 +2239,7 @@ if(typeof window!=='undefined'&&window.__DAILYFIT_TEST__){
     get state(){return state;},set state(v){state=v;},get ui(){return ui;},get PHOTOS(){return PHOTOS;},
     COLORS:COLORS,WEATHER:WEATHER,CAL:CAL,loadInfo:loadInfo,
     normalize:normalize,validateBackup:validateBackup,applyImport:applyImport,importData:importData,
-    scoreCombo:scoreCombo,generate:generate,pools:pools,planWeek:planWeek,makeCtx:makeCtx,pickTop:pickTop,
+    scoreCombo:scoreCombo,generate:generate,rankCandidates:rankCandidates,chooseOutfit:chooseOutfit,TUNING:TUNING,pools:pools,planWeek:planWeek,makeCtx:makeCtx,pickTop:pickTop,
     colorEval:colorEval,pairScore:pairScore,layerWait:layerWait,outfitKey:outfitKey,recentOutfitKeys:recentOutfitKeys,
     saveLocal:saveLocal,serialize:serialize,sampleItems:sampleItems,fixItem:fixItem,
     setRandom:function(f){rand=f||Math.random;},setLastBody:function(v){lastBody=v;}

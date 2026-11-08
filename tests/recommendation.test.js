@@ -179,3 +179,23 @@ test('timetable-driven planning still works: a presentation day picks smart tops
   const free = share(false), present = share(true);
   assert.ok(present >= free + 10, 'presentation day ' + present + '/100 vs free day ' + free + '/100');
 });
+
+test('ranking and choosing are separate steps and agree with generate()', () => {
+  const { api } = app(wardrobe());
+  api.setRandom(seeded(5));
+  const ctx = api.makeCtx();
+  const ranked = api.rankCandidates({}, ctx);
+  assert.ok(ranked.length > 5);
+  for (let i = 1; i < ranked.length; i++) assert.ok(ranked[i - 1].s >= ranked[i].s, 'sorted best first');
+  // ranking uses randomness only to choose which combinations to try; same seed, same list
+  api.setRandom(seeded(5)); const again = api.rankCandidates({}, ctx);
+  assert.deepStrictEqual(plain(again.map((x) => x.key)), plain(ranked.map((x) => x.key)));
+  api.ui.seen.clear(); api.setRandom(seeded(9)); const viaGenerate = api.generate();
+  api.ui.seen.clear(); api.setRandom(seeded(9)); const viaParts = api.chooseOutfit(api.rankCandidates({}, api.makeCtx()), api.makeCtx(), {});
+  assert.strictEqual(viaGenerate.key, viaParts.key);
+});
+
+test('selection settings are visible in one TUNING object', () => {
+  const { api } = app(wardrobe());
+  assert.deepStrictEqual(plain(api.TUNING), { samples: 400, onePieceChance: 0.22, pickFromTop: 10, pickTemperature: 1.5, noRepeatDays: 7 });
+});

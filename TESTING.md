@@ -12,7 +12,7 @@ The tests load `index.html`'s script into Node with a small stand-in for the bro
 |---|---|
 | `tests/storage.test.js` | Old saved data, missing or invalid fields, unreadable saved data (kept in a recovery key), failed writes, no write when nothing changed, bad preferences |
 | `tests/backup.test.js` | Valid backups, missing fields, wrong types, empty and unrelated files, newer versions, invalid items and dates, references to missing pieces, photo validation, atomic restore, failed-save rollback, undo |
-| `tests/recommendation.test.js` | Deterministic scoring, seeded selection, laundry exclusion, recent-wear penalty, no repeated outfit on consecutive days, no duplicates in the weekly plan, tiny wardrobes, missing colours and weather, layer rule, timetable influence |
+| `tests/recommendation.test.js` | Deterministic scoring, the ranking/choosing split, seeded selection, laundry exclusion, recent-wear penalty, no repeated outfit on consecutive days, no duplicates in the weekly plan, tiny wardrobes, missing colours and weather, layer rule, timetable influence |
 
 `tests/fixtures/legacy-minimal.json` is a trimmed-down old-format save used for backward-compatibility tests.
 

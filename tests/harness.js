@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const INDEX = path.join(__dirname, '..', 'index.html');
+const INDEX = process.env.DF_INDEX || path.join(__dirname, '..', 'index.html');
 
 function el() {
   const target = { dataset: {}, style: {}, files: [], value: '', checked: false, hidden: false, innerHTML: '', textContent: '', elements: { color: { value: '' } } };

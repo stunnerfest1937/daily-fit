@@ -70,7 +70,7 @@ This is a rule-based scoring system. There is no machine learning.
 3. **Selection** (`pickTop`): the only place randomness is used. The ten best-scoring candidates are sampled with weights that favour higher scores, so the app gives variety without choosing poor outfits.
 4. **Hard rules** applied before selection: pieces in the wash are never used, and an outfit identical to one worn or planned in the previous 7 days is excluded when any alternative exists. If the wardrobe is too small to avoid it, the app still gives an outfit and says it repeats a recent look.
 
-Weights are plain numbers inside `scoreCombo` and the `PAIR_FIX` colour table in `index.html`. The random source is a single variable (`rand`) so tests can make selection reproducible.
+In the code these are separate steps: `rankCandidates()` builds and scores candidates, and `chooseOutfit()` applies the repeat rules and makes the one random pick. `generate()` just calls both. Selection settings (number of candidates, how many top outfits to choose from, the no-repeat window) are in the `TUNING` object. The scoring weights are plain numbers inside `scoreCombo` and the `PAIR_FIX` colour table, all in `index.html`. The random source is a single variable (`rand`) so tests can make selection reproducible.
 
 ## Local storage and backup
 
