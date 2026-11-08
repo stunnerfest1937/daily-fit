@@ -29,6 +29,8 @@ BASE=http://localhost:8080/daily-fit/ SW_FILE=/tmp/serve/daily-fit/sw.js node te
 
 It checks: service-worker scope, cached shell, offline reload (with a failing weather request), cache cleanup on update without touching other caches, the unreadable-data warning, rejection of malformed backups, no horizontal scroll at 320 px, control sizes, and the list of external hosts contacted.
 
+`tests/e2e/feature-checks.js` is a second optional script that walks through the main features in a real browser: welcome guide, tab bar, shuffle and wear, saved looks, search, quick add, edit, photo attach, laundry, backup export, invalid and valid restore, undo, the visible save-failure warning, and the share image. Run it the same way with `BASE=... PHOTO=/path/to/any.jpg node tests/e2e/feature-checks.js`.
+
 ## Manual checks still needed on real devices
 
 - Install from Chrome on Android and from Safari on iPhone, then open with airplane mode on.
