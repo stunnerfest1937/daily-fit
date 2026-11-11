@@ -28,6 +28,25 @@ Open-Meteo and Google can see your IP address when they receive a request, and t
 
 Sharing the app or an outfit image uses your phone's share sheet. Daily Fit does not upload the image.
 
+## Wardrobe photos
+
+- A photo is optional and is added from your camera or gallery when you add or edit a piece.
+- It is shrunk on your phone (longest side 360 pixels, JPEG) and stored in `localStorage` on that phone only, one entry per piece (`dailyfit.photo.<id>`).
+- The colour guess is worked out on your phone. The photo is **not uploaded** to Open-Meteo, Google or anyone else.
+- A photo is included in a backup file (see below) and in the outfit picture you create with Share. That picture is only sent where you choose to send it.
+- Removing a piece removes its photo from the phone the next time the app starts.
+
+## Backup files
+
+- **Save backup** creates a file called `daily-fit-backup-<date>.json` on your device. It is **not encrypted**. It contains your clothes, wear history, ratings, saved looks, timetable, settings, your saved city (name and rounded coordinates) and any photos.
+- The app does not send the file anywhere. It lands in your Downloads folder. Anyone who gets the file can read it, so share it carefully and do not post it publicly.
+- **Restore backup** reads a file you pick on your device. Nothing is uploaded.
+- Backups taken in this app can be read by this app. They are not a sync feature.
+
+## Cloud sync and accounts
+
+There is none. This app has no account, no login and no server of its own, so nothing is synchronised between devices. A wardrobe on one phone will not appear on another unless you move a backup file yourself.
+
 ## Controlling it
 
 - Location is optional. If permission is denied or the weather service is unreachable, pick the weather yourself and the app works as normal.

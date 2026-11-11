@@ -89,7 +89,11 @@ In the code these are separate steps: `rankCandidates()` builds and scores candi
 
 ## External services and privacy
 
-See [PRIVACY.md](PRIVACY.md). In short: your wardrobe never leaves the device. Weather and city search send a city name or an approximate location to Open-Meteo only if you use them, and Google Fonts is requested when the page loads.
+See [PRIVACY.md](PRIVACY.md). In short: your wardrobe, photos and backups are not uploaded by the app and there is no cloud sync. Weather and city search send a city name or an approximate location to Open-Meteo only if you use them, and Google Fonts is requested when the page loads. Backup files are not encrypted.
+
+## Beta testing
+
+A plan for a small student beta is in [BETA_TEST_PLAN.md](BETA_TEST_PLAN.md), with a [feedback questionnaire](docs/beta/FEEDBACK_QUESTIONNAIRE.md), a [bug report template](docs/beta/BUG_REPORT_TEMPLATE.md) and a [screenshot checklist](docs/SCREENSHOT_CHECKLIST.md).
 
 ## Run and test locally
 
