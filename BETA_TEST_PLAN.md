@@ -43,19 +43,7 @@ Do not recruit people who will say nice things to be polite. Ask them to be blun
 
 ## 4. How to introduce the app to testers
 
-Send this message (edit the names and dates):
-
-> Hi! I built a small app called **Daily Fit**. It picks your college outfit for the day from your own clothes, based on your timetable and the weather. I'd love your honest opinion for one week.
->
-> What you need to do:
-> 1. Open this link on your phone: https://stunnerfest1937.github.io/daily-fit/
-> 2. Add it to your home screen (Android Chrome: menu, Install app. iPhone Safari: Share, Add to Home Screen).
-> 3. Spend about 15 minutes adding some of your real clothes.
-> 4. Open it each morning for 7 days and tell me how it went in the 1-minute daily note.
->
-> Good to know: your clothes are saved only on your phone. I can't see them and I can't recover them. Please tap **Wardrobe, Save backup** once today and once in the middle of the week. Weather needs internet and sends your city name to a free weather service. If something breaks, fill in the bug form. Breaking it is helpful!
->
-> This is an early test, so expect rough edges.
+Send each tester the **invitation message** and the **tester guide** in [docs/beta/TESTER_ONBOARDING.md](docs/beta/TESTER_ONBOARDING.md). The guide covers installing, setting up, daily use, laundry and repeat rules, bug reports and feedback in plain language. The Google Form is described in [docs/beta/GOOGLE_FORM_SETUP.md](docs/beta/GOOGLE_FORM_SETUP.md).
 
 Also tell them how long you need them (one week), how to send feedback (see section 8), and that they can stop at any time.
 
@@ -66,7 +54,7 @@ Ask testers to do these steps **in order** and note the time they start and fini
 1. **Open and install.** Open the link and add it to the home screen. Note how many tries it took.
 2. **Read the welcome card.** The Today screen shows a short setup guide. Do they understand it without help?
 3. **Weather (optional).** Search for their city, or tap "Use my location". Or skip it and pick the weather by hand.
-4. **Clear the sample clothes.** The app starts with 23 sample pieces and 11 sample classes so people can try it. Testers should clear the sample clothes (Wardrobe, Clear samples) and the sample classes (Timetable, Clear samples) before adding their own. If they forget, their own pieces get mixed in with the samples. Note who forgets.
+4. **Clear the sample clothes.** The app starts with 23 sample pieces and 11 sample classes so people can try it. Testers can clear both with the **Clear samples** button on the welcome card, or separately with Clear samples in the Wardrobe tab and in the Timetable tab. If they forget, their own pieces get mixed in with the samples. Note who forgets.
 5. **Add their own clothes.** Minimum to get an outfit is a top, a bottom and shoes. For a proper test, add at least:
    - 4 tops (include one full-sleeve and one smart shirt if they own them),
    - 3 bottoms,

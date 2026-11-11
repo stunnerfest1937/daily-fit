@@ -93,7 +93,7 @@ See [PRIVACY.md](PRIVACY.md). In short: your wardrobe, photos and backups are no
 
 ## Beta testing
 
-A plan for a small student beta is in [BETA_TEST_PLAN.md](BETA_TEST_PLAN.md), with a [feedback questionnaire](docs/beta/FEEDBACK_QUESTIONNAIRE.md), a [bug report template](docs/beta/BUG_REPORT_TEMPLATE.md) and a [screenshot checklist](docs/SCREENSHOT_CHECKLIST.md).
+A plan for a small student beta is in [BETA_TEST_PLAN.md](BETA_TEST_PLAN.md). Supporting files: a [tester guide with an invitation message](docs/beta/TESTER_ONBOARDING.md), a [feedback questionnaire](docs/beta/FEEDBACK_QUESTIONNAIRE.md) and its [Google Form setup](docs/beta/GOOGLE_FORM_SETUP.md), a [bug report template](docs/beta/BUG_REPORT_TEMPLATE.md) and a [screenshot checklist](docs/SCREENSHOT_CHECKLIST.md).
 
 ## Run and test locally
 
